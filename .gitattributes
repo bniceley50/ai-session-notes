@@ -1,0 +1,16 @@
+﻿# Keep text files consistent on Windows while avoiding constant warnings
+* text=auto eol=crlf
+
+# Shell scripts should stay LF if you add them later
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Treat images/binaries as binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.exe binary
+*.dll binary
+*.pdf binary
