@@ -1,0 +1,11 @@
+﻿{
+  "schema_version": 1,
+  "project": "ai-session-notes",
+  "updated_local": "2026-01-16",
+  "skills": [
+    { "slug": "session", "title": "Load session commands", "summary": "Loads repo helper commands into THIS PowerShell window.", "doc": "SKILLS/session.md" },
+    { "slug": "sb",      "title": "Supabase CLI shortcut", "summary": "Runs Supabase CLI via npx: sb <args>", "doc": "SKILLS/sb.md" },
+    { "slug": "dbg",     "title": "Build a filled debug prompt", "summary": "Creates tools/prompts/debug_filled.md with repo+git+env context.", "doc": "SKILLS/dbg.md" },
+    { "slug": "lm",      "title": "Ask LM Studio from the repo", "summary": "Calls tools/lm_ask.ps1 against LM Studio server.", "doc": "SKILLS/lm.md" }
+  ]
+}

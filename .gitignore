@@ -24,6 +24,10 @@
 .DS_Store
 *.pem
 
+# backups
+*.bak-*
+*.broken-backup-*
+
 # debug
 npm-debug.log*
 yarn-debug.log*
