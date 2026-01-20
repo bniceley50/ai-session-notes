@@ -16,6 +16,8 @@ git add .
 git commit -m "Describe the change"
 ```
 
+Recommendation: prefer `git add -p` over `git add .` to avoid accidental commits.
+
 ## Skills
 
 ```text
