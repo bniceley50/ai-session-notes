@@ -13,7 +13,7 @@
 - 2026-01-25 [CODE] Added mandatory repo anchor line section to docs/codex-workflow.md.
 
 ## Now
-- 2026-01-25 [CODE] AGENTS.md modified (uncommitted).
+- 2026-01-25 [CODE] Working tree clean; latest commits: 4a649c6 (workflow repo-anchor requirement), 21494a0 (continuity ledger update).
 - 2026-01-25 [CODE] CONTINUITY.md created (this file).
 
 ## Next
