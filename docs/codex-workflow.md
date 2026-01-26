@@ -16,18 +16,22 @@ git add .
 git commit -m "Describe the change"
 ```
 
-> WARNING: Plans are NOT commands. Never paste Markdown plans into PowerShell.
+## Never paste plans into PowerShell
+- Plans are plain text, NOT commands.
+- If you paste Markdown into PowerShell, it will error (Update/anti-drift/etc. will be treated as commands).
 
-Command labeling rule: only run commands explicitly labeled "PASTE INTO: TERMINAL (PowerShell)".
+## Command labeling rule
+- Only run commands explicitly labeled: "PASTE INTO: TERMINAL (PowerShell)".
+- Anything else is discussion text and must not be pasted into a shell.
 
-Codex Driver Prompt (reuse as needed):
+## Codex Driver Prompt (copy/paste each session)
 ```text
 You are the repo operator. Before any edit run:
 1) git status -sb
 2) git diff --name-only
-If clean: say "No changes required." and stop.
-Only touch files explicitly named by the user.
-After edits: show git --no-pager diff -- <files changed>.
+If clean: STOP and ask what to do next (don't invent work).
+Only touch user-named files.
+After edits: show git --no-pager diff -- <file>.
 If tools\gate.cmd exists, run it.
 ```
 
