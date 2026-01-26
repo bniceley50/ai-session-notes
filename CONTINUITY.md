@@ -10,6 +10,7 @@
 
 ## Done (recent) (<= 7 bullets)
 - 2026-01-25 [CODE] Updated AGENTS.md: ASCII punctuation, drift-guard bullets, Important rules, Continuity Ledger policy.
+- 2026-01-25 [CODE] Added mandatory repo anchor line section to docs/codex-workflow.md.
 
 ## Now
 - 2026-01-25 [CODE] AGENTS.md modified (uncommitted).
@@ -32,3 +33,4 @@
 
 ## Receipts (last 10-20)
 - 2026-01-25 [TOOL] git --no-pager diff -- AGENTS.md confirmed required sections present; ASCII scan clean.
+- 2026-01-25 [CODE] Commit 4a649c6: docs: require repo anchor first line in PowerShell blocks.
