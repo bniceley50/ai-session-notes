@@ -1,5 +1,13 @@
 # Codex workflow
 
+## Start here (mandatory)
+
+Every PowerShell block MUST start with this exact first line (prevents running in C:\Windows by mistake):
+
+```powershell
+Set-Location -LiteralPath 'N:\asn\ai-session-notes'
+```
+
 ## Start Codex
 
 ```powershell
