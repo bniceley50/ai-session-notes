@@ -1,4 +1,4 @@
-﻿# NEXT (Only the next 1-3 actions)
+# NEXT (Only the next 1-3 actions)
 
 1) Add Supabase server/client boundary helpers:
    - Mark `src/lib/supabase/client.ts` as client-only (prevents accidental server imports).
