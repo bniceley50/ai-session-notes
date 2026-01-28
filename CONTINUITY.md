@@ -9,6 +9,8 @@
 - D001 ACTIVE 2026-01-25 [USER] CONTINUITY.md is canonical; read at start of each assistant turn; bounded sections; provenance tags required.
 
 ## Done (recent) (<= 7 bullets)
+- 2026-01-27 [CODE] Added SKILLS/onboard.md ($onboard) for repo onboarding.
+- 2026-01-27 [CODE] Removed UTF-8 BOM from NEXT.md.
 - 2026-01-25 [CODE] Marked src/lib/supabase/client.ts as client-only (added use-client directive); removed BOM.
 - 2026-01-25 [CODE] Updated AGENTS.md: ASCII punctuation, drift-guard bullets, Important rules, Continuity Ledger policy.
 - 2026-01-25 [CODE] Added mandatory repo anchor line section to docs/codex-workflow.md.
@@ -34,6 +36,8 @@
 - 2026-01-25 [CODE] JOURNAL/
 
 ## Receipts (last 10-20)
+- 2026-01-27 [CODE] Commit b9d8b01: docs: add $onboard skill for repo onboarding.
+- 2026-01-27 [CODE] Commit bf946c1: docs: remove UTF-8 BOM from NEXT.md.
 
 - 2026-01-25 [TOOL] git --no-pager diff -- AGENTS.md confirmed required sections present; ASCII scan clean.
 - 2026-01-25 [CODE] Commit 4a649c6: docs: require repo anchor first line in PowerShell blocks.
