@@ -1,11 +1,11 @@
-﻿@echo off
+@echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
 rem tools\dev_quickcheck.bat
 rem Real gate for MVP (Next 16): typecheck + eslint
 
 set "SCRIPT_DIR=%~dp0"
-pushd "%SCRIPT_DIR%\.." >nul || (echo [FAIL] Cannot cd to repo root & exit /b 1)
+pushd "%SCRIPT_DIR%.." >nul || (echo [FAIL] Cannot cd to repo root & exit /b 1)
 
 set "TSC=%CD%\node_modules\.bin\tsc.cmd"
 set "ESLINT=%CD%\node_modules\.bin\eslint.cmd"
