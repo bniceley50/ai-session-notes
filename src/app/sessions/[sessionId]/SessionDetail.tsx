@@ -1,21 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Session } from "@/lib/sessions/mock";
+import type { SessionWithDetails } from "@/lib/sessions/types";
 
 type SessionDetailProps = {
-  session: Session;
+  session: SessionWithDetails;
 };
 
 export default function SessionDetail({ session }: SessionDetailProps) {
-  const [note, setNote] = useState(session.note);
+  const transcriptContent = session.transcript?.content || "No transcript available yet.";
+  const initialNote = session.note?.content || "";
+  const [note, setNote] = useState(initialNote);
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
 
   const wordCount = useMemo(() => {
     const trimmed = note.trim();
     if (!trimmed) return 0;
-    return trimmed.split(/\s+/).length;
+    return trimmed.split(/\s+/).filter(w => w.length > 0).length;
   }, [note]);
+
+  const transcriptWordCount = useMemo(() => {
+    const trimmed = transcriptContent.trim();
+    if (!trimmed) return 0;
+    return trimmed.split(/\s+/).filter(w => w.length > 0).length;
+  }, [transcriptContent]);
 
   const handleCopy = async () => {
     try {
@@ -43,11 +51,11 @@ export default function SessionDetail({ session }: SessionDetailProps) {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Transcript</h2>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
-            {session.transcript.split(/\s+/).length} words
+            {transcriptWordCount} words
           </span>
         </div>
         <p className="mt-4 whitespace-pre-line text-sm leading-6 text-slate-700">
-          {session.transcript}
+          {transcriptContent}
         </p>
       </section>
 
