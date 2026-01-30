@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getSessionById } from "@/lib/sessions/mock";
+import { getSessionWithDetails } from "@/lib/sessions/data";
 import SessionDetail from "./SessionDetail";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -13,8 +13,14 @@ type SessionDetailPageProps = {
   params: { sessionId: string };
 };
 
-export default function SessionDetailPage({ params }: SessionDetailPageProps) {
-  const session = getSessionById(params.sessionId);
+export default async function SessionDetailPage({ params }: SessionDetailPageProps) {
+  const orgId = process.env.DEV_ORG_ID || "";
+  
+  if (!orgId) {
+    notFound();
+  }
+
+  const session = await getSessionWithDetails(params.sessionId, orgId);
 
   if (!session) {
     notFound();
@@ -33,10 +39,10 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                 Back to sessions
               </Link>
               <h1 className="text-3xl font-semibold text-slate-900 sm:text-4xl">
-                {session.patientName}
+                {session.label}
               </h1>
               <p className="text-sm text-slate-600">
-                {dateFormatter.format(new Date(session.date))} • {session.summary}
+                {dateFormatter.format(new Date(session.created_at))} • Status: {session.status}
               </p>
             </div>
             <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
