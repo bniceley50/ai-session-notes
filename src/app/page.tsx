@@ -9,14 +9,18 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 export default async function Home() {
+  // TODO: Replace DEV_ORG_ID with proper user authentication/session management
+  // This is a temporary MVP approach for single-org development
   const orgId = process.env.DEV_ORG_ID || "";
   let sessions: DbSession[] = [];
+  let errorMessage = "";
   
   if (orgId) {
     try {
       sessions = await getSessionsByOrgId(orgId);
     } catch (error) {
       console.error("Failed to fetch sessions:", error);
+      errorMessage = "Failed to load sessions. Please try again later.";
     }
   }
   return (
@@ -43,7 +47,11 @@ export default async function Home() {
         </header>
 
         <section className="grid gap-4">
-          {sessions.length === 0 ? (
+          {errorMessage ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-12 text-center shadow-sm">
+              <p className="text-red-600">{errorMessage}</p>
+            </div>
+          ) : sessions.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
               <p className="text-slate-500">No sessions yet. Create your first session to get started.</p>
             </div>

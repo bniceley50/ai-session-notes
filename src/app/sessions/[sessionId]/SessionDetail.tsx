@@ -16,8 +16,14 @@ export default function SessionDetail({ session }: SessionDetailProps) {
   const wordCount = useMemo(() => {
     const trimmed = note.trim();
     if (!trimmed) return 0;
-    return trimmed.split(/\s+/).length;
+    return trimmed.split(/\s+/).filter(w => w.length > 0).length;
   }, [note]);
+
+  const transcriptWordCount = useMemo(() => {
+    const trimmed = transcriptContent.trim();
+    if (!trimmed) return 0;
+    return trimmed.split(/\s+/).filter(w => w.length > 0).length;
+  }, [transcriptContent]);
 
   const handleCopy = async () => {
     try {
@@ -45,7 +51,7 @@ export default function SessionDetail({ session }: SessionDetailProps) {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Transcript</h2>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
-            {transcriptContent.split(/\s+/).filter(w => w.length > 0).length} words
+            {transcriptWordCount} words
           </span>
         </div>
         <p className="mt-4 whitespace-pre-line text-sm leading-6 text-slate-700">

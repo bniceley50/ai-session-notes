@@ -2,7 +2,7 @@ import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { DbSession, DbTranscript, DbNote, SessionWithDetails } from "./types";
 
-export async function getSessionsByOrgId(orgId: string): Promise<DbSession[]> {
+function getAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -10,7 +10,11 @@ export async function getSessionsByOrgId(orgId: string): Promise<DbSession[]> {
     throw new Error("Missing Supabase environment variables");
   }
 
-  const client = createSupabaseAdminClient(supabaseUrl, serviceRoleKey);
+  return createSupabaseAdminClient(supabaseUrl, serviceRoleKey);
+}
+
+export async function getSessionsByOrgId(orgId: string): Promise<DbSession[]> {
+  const client = getAdminClient();
 
   const { data, error } = await client
     .from("sessions")
@@ -29,14 +33,7 @@ export async function getSessionWithDetails(
   sessionId: string,
   orgId: string
 ): Promise<SessionWithDetails | null> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Missing Supabase environment variables");
-  }
-
-  const client = createSupabaseAdminClient(supabaseUrl, serviceRoleKey);
+  const client = getAdminClient();
 
   const { data: session, error: sessionError } = await client
     .from("sessions")

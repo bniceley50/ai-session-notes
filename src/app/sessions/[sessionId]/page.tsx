@@ -14,6 +14,8 @@ type SessionDetailPageProps = {
 };
 
 export default async function SessionDetailPage({ params }: SessionDetailPageProps) {
+  // TODO: Replace DEV_ORG_ID with proper user authentication/session management
+  // This is a temporary MVP approach for single-org development
   const orgId = process.env.DEV_ORG_ID || "";
   
   if (!orgId) {
