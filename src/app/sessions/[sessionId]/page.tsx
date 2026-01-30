@@ -9,12 +9,11 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-type SessionDetailPageProps = {
-  params: { sessionId: string };
-};
+type SessionDetailPageProps = {\n  params: Promise<{ sessionId: string }>;\n};
 
-export default function SessionDetailPage({ params }: SessionDetailPageProps) {
-  const session = getSessionById(params.sessionId);
+export default async function SessionDetailPage({ params }: SessionDetailPageProps) {
+  const { sessionId } = await params;
+  const session = getSessionById(sessionId);
 
   if (!session) {
     notFound();
@@ -36,7 +35,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                 {session.patientName}
               </h1>
               <p className="text-sm text-slate-600">
-                {dateFormatter.format(new Date(session.date))} • {session.summary}
+                {dateFormatter.format(new Date(session.date))} â€¢ {session.summary}
               </p>
             </div>
             <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
