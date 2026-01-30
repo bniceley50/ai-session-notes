@@ -47,3 +47,7 @@ yarn-error.log*
 next-env.d.ts
 
 .codex_home/
+
+
+# Tool backup files (PowerShell Copy-Item backups)
+tools/*.bak-*
