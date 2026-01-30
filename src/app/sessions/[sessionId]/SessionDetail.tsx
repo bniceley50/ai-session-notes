@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Session } from "@/lib/sessions/mock";
+
 import { useMemo, useState } from "react";
 import type { Session } from "@/lib/sessions/mock";
 
@@ -10,6 +13,55 @@ type SessionDetailProps = {
 export default function SessionDetail({ session }: SessionDetailProps) {
   const [note, setNote] = useState(session.note);
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
+  const saveTimerRef = useRef<number | null>(null);
+
+  const storageKey = useMemo(() => `asn:note:${session.id}`, [session.id]);
+
+  // Load saved note (if any) when session changes
+  useEffect(() => {
+    // default from the session first
+    setNote(session.note);
+
+    try {
+      const saved = window.localStorage.getItem(storageKey);
+      if (saved !== null) {
+        setNote(saved);
+      }
+    } catch {
+      // ignore storage errors (privacy mode, blocked storage, etc.)
+    }
+
+    return () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, [session.id, session.note, storageKey]);
+
+  // Autosave note to localStorage (debounced)
+  useEffect(() => {
+    try {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+
+      saveTimerRef.current = window.setTimeout(() => {
+        try {
+          const trimmed = note.trim();
+          if (trimmed.length === 0) {
+            window.localStorage.removeItem(storageKey);
+          } else {
+            window.localStorage.setItem(storageKey, note);
+          }
+        } catch {
+          // ignore
+        }
+      }, 250);
+    } catch {
+      // ignore
+    }
+  }, [note, storageKey]);
 
   const wordCount = useMemo(() => {
     const trimmed = note.trim();
