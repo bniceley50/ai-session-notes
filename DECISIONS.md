@@ -1,6 +1,6 @@
-# DECISIONS (Locked)
+﻿# DECISIONS (Locked)
 
-## 2026-01-30 — Track B direction (AWS cloud processing + ephemeral note factory)
+## 2026-01-30 - Track B direction (AWS cloud processing + ephemeral note factory)
 
 - Product focus: structured note drafting to save clinician time (not an EHR, not a "HIPAA SaaS platform").
 - No clinical diagnosis or "analysis" features; the output is a draft note only.
@@ -36,7 +36,7 @@
 - Gate discipline: run .\tools\gate.cmd /all before commit.
 - Keep docs tight, no overclaims: document implemented vs target clearly.
 
-## D002 — Policy reference
+## D002 â€” Policy reference
 
 - SECURITY.md is the authoritative policy for data handling, retention, and cloud processing.
 - DECISIONS.md records governing choices and revisit triggers.
