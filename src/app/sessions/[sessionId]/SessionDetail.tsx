@@ -3,42 +3,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@/lib/sessions/mock";
 
-import { useMemo, useState } from "react";
-import type { Session } from "@/lib/sessions/mock";
-
 type SessionDetailProps = {
   session: Session;
 };
 
 export default function SessionDetail({ session }: SessionDetailProps) {
-  const [note, setNote] = useState(session.note);
-  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
-  const saveTimerRef = useRef<number | null>(null);
-
   const storageKey = useMemo(() => `asn:note:${session.id}`, [session.id]);
 
-  // Load saved note (if any) when session changes
-  useEffect(() => {
-    // default from the session first
-    setNote(session.note);
-
+  const [note, setNote] = useState(() => {
     try {
       const saved = window.localStorage.getItem(storageKey);
-      if (saved !== null) {
-        setNote(saved);
-      }
+      if (saved !== null) return saved;
     } catch {
       // ignore storage errors (privacy mode, blocked storage, etc.)
     }
+    return session.note;
+  });
 
-    return () => {
-      if (saveTimerRef.current !== null) {
-        window.clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-    };
-  }, [session.id, session.note, storageKey]);
-
+  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
+  const saveTimerRef = useRef<number | null>(null);
   // Autosave note to localStorage (debounced)
   useEffect(() => {
     try {
@@ -90,7 +73,7 @@ export default function SessionDetail({ session }: SessionDetailProps) {
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+    <div key={session.id} className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Transcript</h2>
