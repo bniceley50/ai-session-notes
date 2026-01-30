@@ -36,9 +36,16 @@ export async function middleware(request: NextRequest): Promise<Response> {
 
   const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
   if (!session) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
     const loginUrl = new URL("/api/auth/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+};
