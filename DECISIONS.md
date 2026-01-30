@@ -1,4 +1,4 @@
-﻿# DECISIONS (Locked)
+# DECISIONS (Locked)
 - Repo location: N:\asn\ai-session-notes
 - Package manager: pnpm
 - Supabase CLI: run via npx (NOT npm -g)

@@ -7,10 +7,10 @@ metadata:
 
 # repo-hygiene
 
-## When to use
+# # When to use
 Use when the repo is accumulating clutter or structure is drifting.
 
-## Workflow
+# # Workflow
 1) Identify:
    - Duplicate/backup files (e.g., *.bak-*)
    - Misplaced notes

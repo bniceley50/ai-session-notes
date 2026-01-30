@@ -1,4 +1,4 @@
-﻿# SKILLS Registry
+# SKILLS Registry
 
 This folder is the repo source-of-truth for what skills exist.
 

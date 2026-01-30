@@ -7,10 +7,10 @@ metadata:
 
 # decision-log
 
-## When to use
+# # When to use
 Use when decisions exist in chat/notes but aren’t recorded clearly.
 
-## Workflow
+# # Workflow
 1) Scan for decisions in recent JOURNAL and commits.
 2) Update `DECISIONS.md` with entries including:
    - Date

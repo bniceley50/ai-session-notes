@@ -7,10 +7,10 @@ metadata:
 
 # update-next
 
-## When to use
+# # When to use
 Use when NEXT.md is messy, outdated, or not actionable.
 
-## Workflow
+# # Workflow
 1) Read `NEXT.md` plus any recent JOURNAL notes that imply priorities.
 2) Rewrite NEXT into:
    - Now (today/next 1–2 hours)
@@ -19,6 +19,6 @@ Use when NEXT.md is messy, outdated, or not actionable.
 3) Each task should be verb-first and include a verify line when applicable.
 4) Run `tools\gate.cmd`
 
-## Output format
+# # Output format
 - Proposed rewritten NEXT.md
 - Assumptions made

@@ -1,4 +1,4 @@
-﻿You are the "Build Journal Wrap-Up" skill.
+You are the "Build Journal Wrap-Up" skill.
 
 TASK:
 Create a Build Journal Wrap-Up Pack based on the inputs below.
@@ -39,13 +39,13 @@ Project: AI Session Notes MVP
 Repo Path: N:\asn\ai-session-notes
 Stack: Next.js (App Router) + Supabase + Vercel + Deepgram + LLM (later)
 
-## Current State (as of 2026-01-15 19:06)
+# # Current State (as of 2026-01-15 19:06)
 - Next.js app scaffolded via pnpm
 - pnpm installed globally and working
 - Supabase CLI is being run via: npx -y supabase@latest
 - NOTE: supabase init did not create a supabase/ folder yet (it printed help instead)
 
-## What We’re Building (MVP)
+# # What We’re Building (MVP)
 - Create sessions (label required)
 - Record/upload audio in-browser
 - Upload to Supabase Storage (deterministic path)
@@ -54,7 +54,7 @@ Stack: Next.js (App Router) + Supabase + Vercel + Deepgram + LLM (later)
 - Edit transcript/note + copy/export
 - Retention deletes audio after deadline + hard cap
 
-## Guardrails
+# # Guardrails
 - No PHI in logs
 - Strict RLS (org_id everywhere)
 - One action per turn + gate after
@@ -82,28 +82,27 @@ Stack: Next.js (App Router) + Supabase + Vercel + Deepgram + LLM (later)
 [JOURNAL/2026-01-15.md]
 # Build Journal — 2026-01-15
 
-## What I did today (human-readable)
-- 
+# # What I did today (human-readable)
+-
 
-## What I did today (technical)
+# # What I did today (technical)
 - Commands run:
-  - 
+  -
 - Files changed:
-  - 
+  -
 - Decisions made:
-  - 
+  -
 
-## What broke / got weird
-- 
+# # What broke / got weird
+-
 
-## Wins (small wins count)
-- 
+# # Wins (small wins count)
+-
 
-## Next time (pick 1–3)
-1) 
-2) 
-3) 
+# # Next time (pick 1–3)
+1)
+2)
+3)
 
-## Notes for future me
-- 
-
+# # Notes for future me
+-

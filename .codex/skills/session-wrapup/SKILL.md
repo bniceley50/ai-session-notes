@@ -7,10 +7,10 @@ metadata:
 
 # session-wrapup
 
-## When to use
+# # When to use
 Use at the end of a work session when you want a clean summary + the repo docs updated.
 
-## Workflow
+# # Workflow
 1) Read the relevant recent notes (latest JOURNAL entry and/or recent changes).
 2) Produce a tight wrapup:
    - What changed
@@ -24,7 +24,7 @@ Use at the end of a work session when you want a clean summary + the repo docs u
    - Update `CONTEXT.md` only if ongoing context shifted
 4) Run `tools\gate.cmd`
 
-## Output format
+# # Output format
 - Wrapup (bullets)
 - Files changed
 - Verification command to run

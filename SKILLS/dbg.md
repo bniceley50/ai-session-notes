@@ -1,4 +1,4 @@
-﻿# dbg
+# dbg
 
 Create a filled debug prompt, then ask LM Studio:
 

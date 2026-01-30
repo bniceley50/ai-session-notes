@@ -1,23 +1,23 @@
-﻿# DEBUG REQUEST (paste info below)
+# DEBUG REQUEST (paste info below)
 
-## Goal
+# # Goal
 Explain the error and propose the smallest fix.
 
-## Environment
+# # Environment
 - Windows 11
 - Repo: N:\asn\ai-session-notes
 - Node: v24.12.0
 - pnpm: 10.28.0
 
-## What I ran
+# # What I ran
 (paste command)
 
-## Error output
+# # Error output
 (paste error)
 
-## Relevant files (paste only what's needed)
+# # Relevant files (paste only what's needed)
 (file path + snippet)
 
-## Constraints
+# # Constraints
 - Prefer ONE file change.
 - No new deps unless absolutely needed.

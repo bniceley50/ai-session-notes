@@ -1,4 +1,4 @@
-﻿# sb
+# sb
 
 Common Supabase CLI shortcuts:
 
