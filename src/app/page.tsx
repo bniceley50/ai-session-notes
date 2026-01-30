@@ -7,6 +7,11 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
+function parseYmdToLocalDate(ymd: string) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -41,7 +46,7 @@ export default function Home() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    {dateFormatter.format(new Date(session.date))}
+                    {dateFormatter.format(parseYmdToLocalDate(session.date))}
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-900 group-hover:text-slate-950">
                     {session.patientName}

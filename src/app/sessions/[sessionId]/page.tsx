@@ -9,6 +9,11 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
+function parseYmdToLocalDate(ymd: string) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 type SessionDetailPageProps = {
   params: Promise<{ sessionId: string }>;
 };
@@ -37,7 +42,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
                 {session.patientName}
               </h1>
               <p className="text-sm text-slate-600">
-                {dateFormatter.format(new Date(session.date))} Ã¢â‚¬Â¢ {session.summary}
+                {dateFormatter.format(parseYmdToLocalDate(session.date))}{" \u2022 "}{session.summary}
               </p>
             </div>
             <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
