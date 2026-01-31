@@ -1,4 +1,5 @@
 import Link from "next/link";
+import JobPanel from "@/components/JobPanel";
 import { sessions } from "@/lib/sessions/mock";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -35,6 +36,10 @@ export default function Home() {
             note before copying or exporting.
           </p>
         </header>
+
+        <div className="grid gap-4">
+          <JobPanel />
+        </div>
 
         <section className="grid gap-4">
           {sessions.map((session) => (
