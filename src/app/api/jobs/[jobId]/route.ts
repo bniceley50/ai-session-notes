@@ -5,16 +5,17 @@ import { deleteJob, getJob } from "@/lib/jobs/store";
 export const runtime = "nodejs";
 
 type RouteContext = {
-  params: { jobId: string };
+  params: Promise<{ jobId: string }>;
 };
 
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
+  const { jobId } = await context.params;
   const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const job = getJob(context.params.jobId);
+  const job = getJob(jobId);
   if (!job || job.practiceId !== session.practiceId) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
@@ -23,12 +24,13 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
 }
 
 export async function DELETE(request: Request, context: RouteContext): Promise<Response> {
+  const { jobId } = await context.params;
   const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const job = getJob(context.params.jobId);
+  const job = getJob(jobId);
   if (!job || job.practiceId !== session.practiceId) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
