@@ -3,6 +3,8 @@
 This repo is for **AI session notes**: maintaining context, decisions, next steps, and wrapups.
 Codex should optimize for **clarity, correctness, and minimal churn**.
 
+See docs/AGENT_CONTRACT.md for the AI agent contract.
+
 # # Definition of done
 - The change is **small and focused** (no "while I'm here..." refactors).
 - The right docs are updated:
