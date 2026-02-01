@@ -15,6 +15,81 @@ export const readJobTtlSeconds = (): number => {
 const clampProgress = (p: number): number =>
   Math.max(0, Math.min(100, Math.round(p)));
 
+const monotonicProgress = (current: number, next: number): number =>
+  Math.max(current, next);
+
+const STATUS_ORDER: JobStatus[] = [
+  "queued",
+  "uploaded",
+  "transcribed",
+  "drafted",
+  "exported",
+  "complete",
+];
+
+const statusIndex = (status: JobStatus): number => {
+  if (status === "failed") return STATUS_ORDER.length;
+  const index = STATUS_ORDER.indexOf(status);
+  return index === -1 ? 0 : index;
+};
+
+const statusProgressFloor = (status: JobStatus): number => {
+  switch (status) {
+    case "uploaded":
+      return 5;
+    case "transcribed":
+      return 15;
+    case "drafted":
+      return 70;
+    case "exported":
+      return 85;
+    case "complete":
+      return 100;
+    case "failed":
+    case "queued":
+    default:
+      return 0;
+  }
+};
+
+const applyMonotonicUpdate = (
+  job: JobRecord,
+  nextStatus: JobStatus,
+  nextProgress: number
+): JobRecord => {
+  if (job.status === "failed") return job;
+
+  const priorStatus = job.status;
+  const currentIndex = statusIndex(job.status);
+  const nextIndex = statusIndex(nextStatus);
+
+  let finalStatus: JobStatus = job.status;
+  if (nextStatus === "failed") {
+    finalStatus = "failed";
+  } else if (nextIndex > currentIndex) {
+    finalStatus = nextStatus;
+  }
+
+  const finalProgress = monotonicProgress(job.progress, nextProgress);
+
+  if (job.status !== finalStatus || job.progress !== finalProgress) {
+    job.status = finalStatus;
+    job.progress = finalProgress;
+    job.updatedAt = new Date().toISOString();
+
+    // Append ONLY when status changes (clean history)
+    if (priorStatus !== finalStatus) {
+      job.statusHistory.push({
+        status: finalStatus,
+        at: job.updatedAt,
+        progress: finalProgress,
+      });
+    }
+  }
+
+  return job;
+};
+
 const computeStatusFromElapsed = (
   elapsedSeconds: number
 ): { status: JobStatus; progress: number } => {
@@ -63,24 +138,12 @@ const tickJob = (job: JobRecord): JobRecord => {
   const next = computeStatusFromElapsed(elapsedSeconds);
   const nextProgress = clampProgress(next.progress);
 
-  const priorStatus = job.status;
-
-  if (job.status !== next.status || job.progress !== nextProgress) {
-    job.status = next.status;
-    job.progress = nextProgress;
-    job.updatedAt = new Date().toISOString();
-
-    // Append ONLY when status changes (clean history)
-    if (priorStatus !== next.status) {
-      job.statusHistory.push({
-        status: next.status,
-        at: job.updatedAt,
-        progress: nextProgress,
-      });
-    }
+  // Tick is deterministic simulation only: never auto-fail.
+  if (next.status === "failed") {
+    return job;
   }
 
-  return job;
+  return applyMonotonicUpdate(job, next.status, nextProgress);
 };
 
 export const createJob = (practiceId: string): JobRecord => {
@@ -119,10 +182,45 @@ export const getJobWithProgress = (jobId: string): JobRecord | null => {
   return tickJob(job);
 };
 
+export const advanceJob = (
+  jobId: string,
+  practiceId: string,
+  nextStatus: JobStatus
+): JobRecord | null => {
+  const job = getJobWithProgress(jobId);
+  if (!job || job.practiceId !== practiceId) return null;
+
+  const currentIndex = statusIndex(job.status);
+  const targetIndex = statusIndex(nextStatus);
+  if (targetIndex <= currentIndex) return job;
+
+  const nextProgress = Math.max(job.progress, statusProgressFloor(nextStatus));
+  return applyMonotonicUpdate(job, nextStatus, nextProgress);
+};
+
 export const getJobEvents = (jobId: string): JobStatusEvent[] | null => {
   const job = getJobWithProgress(jobId);
   if (!job) return null;
   return job.statusHistory;
+};
+
+export const forceJobStatus = (jobId: string, status: JobStatus): JobRecord | null => {
+  const job = getJob(jobId);
+  if (!job) return null;
+  if (job.status === "failed") return job;
+  if (status === "failed") return job;
+
+  const currentIndex = statusIndex(job.status);
+  const targetIndex = statusIndex(status);
+  if (targetIndex <= currentIndex) return job;
+
+  const updatedAt = new Date().toISOString();
+  const nextProgress = Math.max(job.progress, statusProgressFloor(status));
+  job.status = status;
+  job.progress = nextProgress;
+  job.updatedAt = updatedAt;
+  job.statusHistory.push({ status, at: updatedAt, progress: nextProgress });
+  return job;
 };
 
 export const deleteJob = (jobId: string): boolean => jobs.delete(jobId);
