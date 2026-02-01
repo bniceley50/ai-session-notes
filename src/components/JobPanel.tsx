@@ -27,13 +27,20 @@ export default function JobPanel() {
         return;
       }
       const nowIso = new Date().toISOString();
+      const baseStatus = parsed.status ?? "queued";
+      const baseCreatedAt = parsed.createdAt ?? nowIso;
+      const baseProgress = typeof parsed.progress === "number" ? parsed.progress : 0;
       setJob({
         jobId: parsed.jobId,
         practiceId: parsed.practiceId ?? "",
-        status: parsed.status ?? "queued",
-        progress: typeof parsed.progress === "number" ? parsed.progress : 0,
-        createdAt: parsed.createdAt ?? nowIso,
-        updatedAt: parsed.updatedAt ?? nowIso,
+        status: baseStatus,
+        progress: baseProgress,
+        createdAt: baseCreatedAt,
+        updatedAt: parsed.updatedAt ?? baseCreatedAt,
+        statusHistory:
+          Array.isArray(parsed.statusHistory) && parsed.statusHistory.length > 0
+            ? parsed.statusHistory
+            : [{ status: baseStatus, at: baseCreatedAt, progress: baseProgress }],
         expiresAt: parsed.expiresAt,
       });
     } catch (error) {
@@ -232,6 +239,28 @@ export default function JobPanel() {
               {job.updatedAt ? new Date(job.updatedAt).toLocaleTimeString() : "—"}
             </span>
           </div>
+          {job.statusHistory?.length ? (
+            <div className="mt-2 text-sm">
+              <div className="font-semibold text-slate-900">Timeline:</div>
+              <ul className="mt-1 grid gap-1">
+                {job.statusHistory.map((event, idx) => {
+                  const time = new Date(event.at);
+                  return (
+                    <li
+                      key={`${event.at}-${idx}`}
+                      className="flex items-center gap-2 text-slate-700"
+                    >
+                      <span className="tabular-nums text-slate-500">
+                        {Number.isNaN(time.getTime()) ? "—" : time.toLocaleTimeString()}
+                      </span>
+                      <span className="capitalize">{event.status}</span>
+                      <span className="text-slate-500">({event.progress}%)</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
           <div>
             <span className="font-semibold text-slate-900">Expires:</span>{" "}
             <span>{expiresAtLabel ?? job.expiresAt}</span>
