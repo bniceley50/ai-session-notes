@@ -1,107 +1,135 @@
-﻿# Agent Playbook (ai-session-notes)
+# Agent Playbook (ai-session-notes)
 
 This repo runs **fast and deterministic**. No wandering. No question loops.
 
+## Purpose
+
+- Keep the build moving with minimal friction.
+- Keep changes small, verified, and reversible.
+- Make it easy for multiple agents/tools to work without chaos.
+
+---
+
 ## Non-negotiables
 
-- **Default mode is READ-ONLY.** Do not edit files, run formatters, or change git state unless the user includes an explicit `EDIT_OK:` line listing allowed files.
-- **One change → gate.** Exactly one patch (can touch multiple files only if that *single patch* is the unit of work), then run `\.tools\gate.cmd`, then report results.
-- **No question loops.** Do **not** ask for confirmations. Only ask questions if you are genuinely blocked and cannot proceed safely.
-  - If something is missing, **choose sane defaults** and proceed.
-- **Always anchor commands to repo root first line:**
-  - `Set-Location -LiteralPath "N:\asn\ai-session-notes"`
+### 1) Default mode is READ-ONLY
+Do not edit files, run formatters, install deps, or change git state unless the user includes:
 
-## Working model (Brian ↔ Agent)
+- `EDIT_OK: file1, file2, ...`
 
-- **Brian = operator** (runs commands / approves writes)
-- **Agent = navigator** (proposes exactly one change, provides exact commands, then gates)
+If `EDIT_OK` is missing, you may only:
+- Read files
+- Run checks that do not modify state (ex: `git status -sb`, `git log -1`, `\.tools\gate.cmd` **only if it does not write**)
+- Propose exact next steps
 
-## “Questions” rule (to stop the loop)
-
-At the end of every response include:
-
-- `Questions (blocking): none`
-
-Only include real questions if you literally cannot proceed without an answer.
-
-## Command discipline
-
-Every command must be labeled:
-
-- `PASTE INTO: TERMINAL (PowerShell)`
-- `PASTE INTO: CODEX`
-
-If it’s not labeled, it doesn’t get run.
-
-## Gate (definition of “done” for a change)
-
-After each change:
+### 2) One change → gate
+Exactly one patch (the unit of work), then immediately:
 
 1. `\.tools\gate.cmd`
 2. `git diff --stat`
 3. `git status -sb`
 
-Report:
-- the first error (if any) + ~20 lines of context
-- otherwise: `[OK] quickcheck passed` + diffstat summary
+If gate fails:
+- Stop. Fix only what’s required to get gate green.
+- Gate again.
+- Report the first error and its context (don’t paste walls of text).
+
+### 3) No question loops (question budget)
+**Question budget = 0 unless blocked.**
+
+- “Blocked” = you cannot proceed safely because a required input is missing.
+- If blocked:
+  - Ask **one sentence**
+  - State a **default**
+  - Proceed immediately using that default
+
+### 4) Always anchor commands to repo root
+Every command block starts with:
+
+`Set-Location -LiteralPath "N:\asn\ai-session-notes"`
+
+### 5) Report “Questions (blocking)” every time
+At the end of every response include:
+
+`Questions (blocking): none`
+
+Only list real blocking questions.
 
 ---
 
-# CODEx prompts (copy/paste)
+## Preflight facts (read-only)
 
-## A) CODEx – Repo Audit (STRICT READ-ONLY)
+Before doing any work, verify these 3 facts:
 
-You are Codex working in this repo:
-
-Repo root (Windows): `N:\asn\ai-session-notes`
-
-**MODE: READ-ONLY.**
-- Do NOT edit files.
-- Do NOT run commands that modify repo state (no git add/commit, no formatters that write, no installs that write lockfiles).
-- OK: reading files, searching, `git status -sb`, `git diff`, `git log -1`, `rg`, `ls`, `cat`, `pnpm -s` commands that do not write.
-
-**Your job:**
-1. Read: `NEXT.md`, `DECISIONS.md`, `AGENTS.md`, `docs/codex-workflow.md`, and scan these folders:
-   - `src/app/api`
-   - `src/lib/jobs`
-   - `src/components`
-2. Produce:
-   - A completion table (DONE / PARTIAL / TODO) with file/route evidence
-   - A weighted % complete estimate (explain weights)
-   - “Next 3 tasks” (smallest shippable steps)
-3. Keep it tight. No essays.
-4. End with: `Questions (blocking): none` unless truly blocked.
-
-## B) CODEx – Build Mode (EDITS REQUIRE EDIT_OK)
-
-You are Codex working in: `N:\asn\ai-session-notes`
-
-Default is READ-ONLY until the user provides:
-
-`EDIT_OK: <comma-separated list of files you may modify>`
-
-Rules:
-- No questions unless blocked. Pick defaults and proceed.
-- One change then gate:
-  - apply exactly one patch
-  - run `\.tools\gate.cmd`
-  - show `git diff --stat` and `git status -sb`
-- If a command would write files or change git state, present the exact command and wait for approval.
-- End with: `Questions (blocking): none`
+1. **Contract + permissions:** confirm `docs/AGENT_CONTRACT.md` and any edit restrictions / `EDIT_OK` requirements.
+2. **Repo reality check:** run `git status -sb` and `git log -1 --oneline`.
+3. **Plan of record:** read `NEXT.md` + `DECISIONS.md` so “done” is explicit.
 
 ---
 
-# Defaults we use when not specified
+## Working model (Brian ↔ Agent)
 
-- Job stages: `queued → uploaded → transcribed → drafted → exported → complete` (failed is terminal, never auto-failed by tick)
-- Endpoints: stub endpoints are **idempotent** (calling an earlier stage does nothing)
-- Auth: endpoints require session cookie auth like other job routes
+- **Brian = operator** (runs commands / approves edits)
+- **Agent = navigator** (proposes one change, gives exact commands, then gates)
 
 ---
 
-# Troubleshooting patterns
+## Command discipline
 
-- If dev server isn’t reachable: start it in a separate terminal:
-  - `pnpm dev`
-- Smoke test scripts should run only when server is Ready on `http://localhost:3000`
-- If typecheck fails after adding tests: exclude tests from main `tsconfig.json` or add a test-only tsconfig.
+Every command must be labeled:
+
+- `PASTE INTO: TERMINAL (PowerShell)` — Brian runs
+- `PASTE INTO: CODEX` — agent runs inside Codex session
+
+If it’s not labeled, it doesn’t get run.
+
+---
+
+## Gate = definition of “done”
+
+After each patch:
+
+- `\.tools\gate.cmd`
+- `git diff --stat`
+- `git status -sb`
+
+Report back:
+- Gate result summary
+- First error if any (with ~20 lines context)
+- Current working tree state
+
+---
+
+## Defaults (use these instead of asking)
+
+If not blocked, pick defaults and proceed:
+
+- Status mapping: `upload→uploaded`, `transcribe→transcribed`, `draft→drafted`, `export→exported`
+- Idempotency: if already at or past target status, return current job (no new history entry)
+- Sorting history: keep append-only order unless a bug forces sorting
+- Progress: use monotonic rules + floor per stage
+
+---
+
+## Weekly quality pass (once per week)
+
+Once per week (not every day):
+
+- remove dead code
+- tighten types
+- add 1–2 tests
+- update `DECISIONS.md` if anything changed
+
+Keep it small and boring. This prevents rot.
+
+---
+
+## “Stop digging” rule
+
+If a change starts branching into multiple problems:
+- Stop.
+- Finish the smallest shippable fix.
+- Gate.
+- Then do the next patch.
+
+Questions (blocking): none
