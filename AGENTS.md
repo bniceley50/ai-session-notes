@@ -1,5 +1,8 @@
 # ai-session-notes - Codex Working Agreements (AGENTS.md)
 
+See docs/AGENT_PLAYBOOK.md for the agent playbook (Codex prompts + operating rules).
+
+
 This repo is for **AI session notes**: maintaining context, decisions, next steps, and wrapups.
 Codex should optimize for **clarity, correctness, and minimal churn**.
 
