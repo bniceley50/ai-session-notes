@@ -8,7 +8,9 @@
         "start": "next start",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
-        "test": "node -e \"console.log('no tests yet')\""
+        "test": "node --test --experimental-strip-types",
+        "test:jobs": "node --test --experimental-strip-types src/lib/jobs/*.test.ts",
+        "test:watch": "node --test --watch --experimental-strip-types"
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.91.0",
