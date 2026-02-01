@@ -4,6 +4,10 @@
 # Markdown should be LF
 *.md text eol=lf
 
+# TypeScript should be LF
+*.ts text eol=lf
+*.tsx text eol=lf
+
 # Windows scripts should be CRLF
 *.ps1 text eol=crlf
 *.cmd text eol=crlf
