@@ -11,5 +11,5 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const job = createJob(session.practiceId);
-  return NextResponse.json({ jobId: job.id, expiresAt: job.expiresAt });
+  return NextResponse.json(job, { status: 200 });
 }

@@ -1,15 +1,11 @@
-export type JobStatus =
-  | "created"
-  | "uploaded"
-  | "transcribed"
-  | "drafted"
-  | "exported"
-  | "deleted";
+export type JobStatus = "queued" | "running" | "complete" | "failed";
 
 export type JobRecord = {
-  id: string;
+  jobId: string;
   practiceId: string;
   status: JobStatus;
+  progress: number;
   createdAt: string;
+  updatedAt: string;
   expiresAt: string;
 };

@@ -1,16 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-
-type JobMeta = {
-  jobId: string;
-  expiresAt: string;
-};
+import type { JobRecord } from "@/lib/jobs/types";
 
 const STORAGE_KEY = "asn_current_job";
+const POLL_MS = 2000;
 
 export default function JobPanel() {
-  const [job, setJob] = useState<JobMeta | null>(null);
+  const [job, setJob] = useState<JobRecord | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
@@ -18,11 +15,30 @@ export default function JobPanel() {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as JobMeta;
-      if (parsed?.jobId && parsed?.expiresAt) {
-        setJob(parsed);
+      const parsed = JSON.parse(raw) as Partial<JobRecord>;
+      if (!parsed?.jobId || !parsed?.expiresAt) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        setJob(null);
+        return;
       }
+      if (Date.parse(parsed.expiresAt) <= Date.now()) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        setJob(null);
+        return;
+      }
+      const nowIso = new Date().toISOString();
+      setJob({
+        jobId: parsed.jobId,
+        practiceId: parsed.practiceId ?? "",
+        status: parsed.status ?? "queued",
+        progress: typeof parsed.progress === "number" ? parsed.progress : 0,
+        createdAt: parsed.createdAt ?? nowIso,
+        updatedAt: parsed.updatedAt ?? nowIso,
+        expiresAt: parsed.expiresAt,
+      });
     } catch (error) {
+      window.localStorage.removeItem(STORAGE_KEY);
+      setJob(null);
       setMessage("Unable to read saved job.");
     }
   }, []);
@@ -53,19 +69,96 @@ export default function JobPanel() {
         setMessage("Unable to create a job.");
         return;
       }
-      const data = (await response.json()) as JobMeta;
-      if (!data?.jobId || !data?.expiresAt) {
+      const created = (await response.json()) as JobRecord;
+      if (!created?.jobId || !created?.expiresAt) {
         setMessage("Unexpected job response.");
         return;
       }
-      setJob(data);
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      setJob(created);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(created));
     } catch (error) {
       setMessage("Unable to create a job.");
     } finally {
       setIsBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!job?.jobId) return;
+
+    let cancelled = false;
+    let inFlight = false;
+    let activeController: AbortController | null = null;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const currentJobId = job.jobId;
+
+    const pollOnce = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      activeController?.abort();
+      activeController = new AbortController();
+      try {
+        const response = await fetch(`/api/jobs/${currentJobId}`, {
+          method: "GET",
+          signal: activeController.signal,
+        });
+
+        if (response.status === 401) {
+          if (!cancelled) {
+            setMessage("Please sign in to view job status.");
+            setJob(null);
+            window.localStorage.removeItem(STORAGE_KEY);
+          }
+          cancelled = true;
+          if (intervalId) clearInterval(intervalId);
+          return;
+        }
+
+        if (response.status === 404) {
+          if (!cancelled) {
+            setMessage("Job not found (server restarted).");
+            setJob(null);
+            window.localStorage.removeItem(STORAGE_KEY);
+          }
+          cancelled = true;
+          if (intervalId) clearInterval(intervalId);
+          return;
+        }
+
+        if (!response.ok) {
+          if (!cancelled) {
+            setMessage("Unable to load job status.");
+          }
+          return;
+        }
+
+        const next = (await response.json()) as JobRecord;
+        if (!cancelled) {
+          setJob(next);
+        }
+
+        if (next?.status === "complete" || next?.status === "failed") {
+          cancelled = true;
+          if (intervalId) clearInterval(intervalId);
+        }
+      } catch (error) {
+        if (!cancelled && (error as { name?: string })?.name !== "AbortError") {
+          setMessage("Unable to load job status.");
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    intervalId = setInterval(() => void pollOnce(), POLL_MS);
+    void pollOnce();
+
+    return () => {
+      cancelled = true;
+      activeController?.abort();
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [job?.jobId]);
 
   const handleDelete = async () => {
     if (!job) return;
@@ -124,6 +217,20 @@ export default function JobPanel() {
             <span className="font-semibold text-slate-900">Job ID:</span>{" "}
             <span className="font-mono">{job.jobId.slice(0, 8)}</span>
             <span className="text-slate-400">…</span>
+          </div>
+          <div>
+            <span className="font-semibold text-slate-900">Status:</span>{" "}
+            <span className="capitalize">{job.status}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <progress max={100} value={job.progress} className="h-2 w-40" />
+            <span>{job.progress}%</span>
+          </div>
+          <div>
+            <span className="font-semibold text-slate-900">Updated:</span>{" "}
+            <span>
+              {job.updatedAt ? new Date(job.updatedAt).toLocaleTimeString() : "—"}
+            </span>
           </div>
           <div>
             <span className="font-semibold text-slate-900">Expires:</span>{" "}
