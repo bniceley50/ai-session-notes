@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# local job artifacts (dev/demo only)
+.artifacts/
+
 # backups
 *.bak-*
 *.broken-backup-*
