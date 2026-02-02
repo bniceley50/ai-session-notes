@@ -1,4 +1,4 @@
-# Agent Playbook (ai-session-notes)
+﻿# Agent Playbook (ai-session-notes)
 
 This repo runs **fast and deterministic**. No wandering. No question loops.
 
@@ -12,82 +12,18 @@ This repo runs **fast and deterministic**. No wandering. No question loops.
 
 ## Non-negotiables
 
-### 1) Default mode is READ-ONLY
+### Default mode is READ-ONLY
 Do not edit files, run formatters, install deps, or change git state unless the user includes:
 
 - `EDIT_OK: file1, file2, ...`
 
 If `EDIT_OK` is missing, you may only:
 - Read files
-- Run checks that do not modify state (ex: `git status -sb`, `git log -1`, `\.tools\gate.cmd` **only if it does not write**)
+- Run checks that do not modify state (ex: `git status -sb`, `git log -1`)
 - Propose exact next steps
 
-### 2) One change → gate
-Exactly one patch (the unit of work), then immediately:
-
-1. `\.tools\gate.cmd`
-2. `git diff --stat`
-3. `git status -sb`
-
-If gate fails:
-- Stop. Fix only what’s required to get gate green.
-- Gate again.
-- Report the first error and its context (don’t paste walls of text).
-
-### 3) No question loops (question budget)
-**Question budget = 0 unless blocked.**
-
-- “Blocked” = you cannot proceed safely because a required input is missing.
-- If blocked:
-  - Ask **one sentence**
-  - State a **default**
-  - Proceed immediately using that default
-
-### 4) Always anchor commands to repo root
-Every command block starts with:
-
-`Set-Location -LiteralPath "N:\asn\ai-session-notes"`
-
-### 5) Report “Questions (blocking)” every time
-At the end of every response include:
-
-`Questions (blocking): none`
-
-Only list real blocking questions.
-
----
-
-## Preflight facts (read-only)
-
-Before doing any work, verify these 3 facts:
-
-1. **Contract + permissions:** confirm `docs/AGENT_CONTRACT.md` and any edit restrictions / `EDIT_OK` requirements.
-2. **Repo reality check:** run `git status -sb` and `git log -1 --oneline`.
-3. **Plan of record:** read `NEXT.md` + `DECISIONS.md` so “done” is explicit.
-
----
-
-## Working model (Brian ↔ Agent)
-
-- **Brian = operator** (runs commands / approves edits)
-- **Agent = navigator** (proposes one change, gives exact commands, then gates)
-
----
-
-## Command discipline
-
-Every command must be labeled:
-
-- `PASTE INTO: TERMINAL (PowerShell)` — Brian runs
-- `PASTE INTO: CODEX` — agent runs inside Codex session
-
-If it’s not labeled, it doesn’t get run.
-
----
-
-## Gate = definition of “done”
-
-After each patch:
+### One change → gate
+Exactly one patch (the “unit of work”), then immediately run:
 
 - `\.tools\gate.cmd`
 - `git diff --stat`
@@ -98,23 +34,38 @@ Report back:
 - First error if any (with ~20 lines context)
 - Current working tree state
 
----
+### No question loops (question budget)
+**Question budget = 0 unless blocked.**
 
-## Defaults (use these instead of asking)
+- Blocked = you cannot proceed safely because required input is missing.
+- If blocked:
+  - Ask **one** question (one sentence).
+  - State a default.
+  - Proceed using that default.
 
+### Every command must be labeled
+- `PASTE INTO: TERMINAL (PowerShell)` — Brian runs
+- `PASTE INTO: CODEX` — agent runs inside Codex session
+
+If it is not labeled, it does not get run.
+
+### “Stop digging” rule
+If a change starts branching into multiple problems:
+- Stop.
+- Finish the smallest shippable fix.
+- Gate.
+- Then do the next patch.
+
+### Defaults (use these instead of asking)
 If not blocked, pick defaults and proceed:
 
 - Status mapping: `upload→uploaded`, `transcribe→transcribed`, `draft→drafted`, `export→exported`
-- Idempotency: if already at or past target status, return current job (no new history entry)
-- Sorting history: keep append-only order unless a bug forces sorting
-- Progress: use monotonic rules + floor per stage
+- Idempotency: if already at or past target status, return current job (**no new history entry**)
+- Status history: keep append-only order unless a bug forces sorting
+- Progress: monotonic rules + floor per stage
 
----
-
-## Weekly quality pass (once per week)
-
+### Weekly quality pass (once per week)
 Once per week (not every day):
-
 - remove dead code
 - tighten types
 - add 1–2 tests
@@ -124,12 +75,47 @@ Keep it small and boring. This prevents rot.
 
 ---
 
-## “Stop digging” rule
+## Milestones
 
-If a change starts branching into multiple problems:
-- Stop.
-- Finish the smallest shippable fix.
-- Gate.
-- Then do the next patch.
+### Milestone A — Local demo pipeline (no AWS yet)
+This is the “make it feel real” milestone. No cloud. No big design project.
 
-Questions (blocking): none
+**Artifacts location**
+- All job artifacts live under repo root: `./.artifacts/`
+- Canonical path:
+  - `./.artifacts/<practiceId>/<sessionId>/<jobId>/`
+
+**Hard rule: job ↔ session**
+- A job MUST be tied to a session immediately.
+- Jobs are created from the **Session Detail page**, not from the home page “in a vacuum.”
+- Job record includes `sessionId` from day one.
+
+**Stages produce real files**
+- `upload` creates/stores an artifact (even if it’s just a copied file)
+- `transcribe` creates `transcript.txt` (stub text is OK for now)
+- `draft` creates `draft.md` or `draft.txt` (stub SOAP is OK for now)
+- `export` creates:
+  - `ehr.txt` (exportable text)
+  - optional `note.pdf` later (not required for Milestone A)
+
+**Deletion**
+- “Delete now” deletes the job record AND deletes files in that job folder.
+- TTL purge deletes expired job folders too (local filesystem purge is OK for now).
+
+---
+
+## Dev UX rule
+Keep auth invisible for local dev.
+
+But provide a tiny indicator + reset:
+- Show `Signed in (dev)` when authed
+- Provide `Logout` to clear state quickly during testing
+
+---
+
+## Session template
+At the end of every response:
+
+`Questions (blocking): none`
+---
+End of file.
