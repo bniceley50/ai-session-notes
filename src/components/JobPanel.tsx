@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import type { JobRecord } from "@/lib/jobs/types";
@@ -9,7 +9,12 @@ const POLL_MS = 2000;
 export default function JobPanel() {
   const [job, setJob] = useState<JobRecord | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [demoLoginError, setDemoLoginError] = useState<string | null>(null);
+  const [demoLogoutError, setDemoLogoutError] = useState<string | null>(null);
+  const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
+  const [authedLabel, setAuthedLabel] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
+  const isDev = process.env.NODE_ENV !== "production";
 
   useEffect(() => {
     try {
@@ -48,6 +53,38 @@ export default function JobPanel() {
       setJob(null);
       setMessage("Unable to read saved job.");
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const response = await fetch("/api/me", { credentials: "include" });
+        if (cancelled) return;
+        if (!response.ok) {
+          setIsAuthed(false);
+          setAuthedLabel(null);
+          return;
+        }
+        const data = (await response.json()) as { email?: string; role?: string };
+        setIsAuthed(true);
+        if (data?.email || data?.role) {
+          const labelParts = [data.email, data.role].filter(Boolean);
+          setAuthedLabel(labelParts.join(" "));
+        } else {
+          setAuthedLabel(null);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setIsAuthed(false);
+        setAuthedLabel(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const expiresAtLabel = useMemo(() => {
@@ -190,6 +227,60 @@ export default function JobPanel() {
     }
   };
 
+  const handleDemoLogin = async () => {
+    setIsBusy(true);
+    setDemoLoginError(null);
+    try {
+      const response = await fetch(
+        "/api/auth/dev-login?email=test@example.com&role=admin",
+        { method: "GET", credentials: "include" }
+      );
+      if (!response.ok) {
+        setDemoLoginError(
+          response.status === 404 ? "Demo login unavailable." : "Demo login failed."
+        );
+        return;
+      }
+      window.location.reload();
+    } catch (error) {
+      setDemoLoginError("Demo login failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setIsBusy(true);
+    setDemoLogoutError(null);
+    try {
+      let response = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (response.status === 405) {
+        response = await fetch("/api/auth/logout", {
+          method: "GET",
+          credentials: "include",
+        });
+      }
+      if (!response.ok) {
+        setDemoLogoutError(
+          response.status === 404 ? "Logout unavailable." : "Logout failed."
+        );
+        return;
+      }
+      window.localStorage.removeItem(STORAGE_KEY);
+      window.location.reload();
+    } catch (error) {
+      setDemoLogoutError("Logout failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const showDemoLogin = isDev && isAuthed === false;
+  const showDevAuthControls = isDev && isAuthed === true;
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -218,12 +309,31 @@ export default function JobPanel() {
           </button>
         </div>
       </div>
+      {showDevAuthControls ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span>
+            Signed in (dev)
+            {authedLabel ? `: ${authedLabel}` : null}
+          </span>
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={isBusy}
+            className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Logout
+          </button>
+          {demoLogoutError ? (
+            <span className="text-rose-600">{demoLogoutError}</span>
+          ) : null}
+        </div>
+      ) : null}
       {job ? (
         <div className="mt-4 grid gap-2 text-sm text-slate-700">
           <div>
             <span className="font-semibold text-slate-900">Job ID:</span>{" "}
             <span className="font-mono">{job.jobId.slice(0, 8)}</span>
-            <span className="text-slate-400">…</span>
+            <span className="text-slate-400">â€¦</span>
           </div>
           <div>
             <span className="font-semibold text-slate-900">Status:</span>{" "}
@@ -236,7 +346,7 @@ export default function JobPanel() {
           <div>
             <span className="font-semibold text-slate-900">Updated:</span>{" "}
             <span>
-              {job.updatedAt ? new Date(job.updatedAt).toLocaleTimeString() : "—"}
+              {job.updatedAt ? new Date(job.updatedAt).toLocaleTimeString() : "â€”"}
             </span>
           </div>
           {job.statusHistory?.length ? (
@@ -251,7 +361,7 @@ export default function JobPanel() {
                       className="flex items-center gap-2 text-slate-700"
                     >
                       <span className="tabular-nums text-slate-500">
-                        {Number.isNaN(time.getTime()) ? "—" : time.toLocaleTimeString()}
+                        {Number.isNaN(time.getTime()) ? "â€”" : time.toLocaleTimeString()}
                       </span>
                       <span className="capitalize">{event.status}</span>
                       <span className="text-slate-500">({event.progress}%)</span>
@@ -271,6 +381,21 @@ export default function JobPanel() {
         <p className="mt-4 text-sm text-slate-600">No active job yet.</p>
       )}
       {message ? <p className="mt-4 text-sm text-rose-600">{message}</p> : null}
+      {showDemoLogin ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleDemoLogin}
+            disabled={isBusy}
+            className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Demo Login
+          </button>
+          {demoLoginError ? (
+            <span className="text-xs text-rose-600">{demoLoginError}</span>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
