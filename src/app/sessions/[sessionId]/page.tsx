@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
+﻿import Link from "next/link";
+import JobPanel from "@/components/JobPanel";
 import { getSessionById } from "@/lib/sessions/mock";
 import SessionDetail from "./SessionDetail";
 
@@ -20,11 +20,15 @@ type SessionDetailPageProps = {
 
 export default async function SessionDetailPage({ params }: SessionDetailPageProps) {
   const { sessionId } = await params;
-  const session = getSessionById(sessionId);
-
-  if (!session) {
-    notFound();
-  }
+  const session =
+    getSessionById(sessionId) ?? {
+      id: sessionId,
+      patientName: "Unknown",
+      date: new Date().toISOString().slice(0, 10),
+      summary: "Session details not yet available.",
+      transcript: "",
+      note: "",
+    };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -52,7 +56,16 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
         </header>
 
         <SessionDetail session={session} />
+        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="mb-4 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+            Job pipeline
+          </div>
+          <JobPanel sessionId={sessionId} />
+        </section>
       </main>
     </div>
   );
 }
+
+
+

@@ -1,5 +1,5 @@
 ﻿import { randomUUID } from "crypto";
-import type { JobRecord, JobStatus, JobStatusEvent } from "./types";
+import type { JobRecord, JobStatus, JobStatusEvent, JobUpload } from "./types";
 
 const jobs = new Map<string, JobRecord>();
 
@@ -146,15 +146,20 @@ const tickJob = (job: JobRecord): JobRecord => {
   return applyMonotonicUpdate(job, next.status, nextProgress);
 };
 
-export const createJob = (practiceId: string): JobRecord => {
+export const createJob = (practiceId: string, sessionId: string, jobId: string = randomUUID()): JobRecord => {
+  if (!sessionId) {
+    throw new Error("sessionId required");
+  }
+
   const now = new Date();
   const createdAt = now.toISOString();
   const ttl = readJobTtlSeconds();
   const expiresAt = new Date(now.getTime() + ttl * 1000).toISOString();
 
   const job: JobRecord = {
-    jobId: randomUUID(),
+    jobId,
     practiceId,
+    sessionId,
     status: "queued",
     progress: 0,
     createdAt,
@@ -198,6 +203,88 @@ export const advanceJob = (
   return applyMonotonicUpdate(job, nextStatus, nextProgress);
 };
 
+export const recordJobUpload = (
+  jobId: string,
+  practiceId: string,
+  sessionId: string,
+  upload: JobUpload
+): JobRecord | null => {
+  const job = getJobWithProgress(jobId);
+  if (!job || job.practiceId !== practiceId) return null;
+  if (job.sessionId !== sessionId) return null;
+
+  const previousUpdatedAt = job.updatedAt;
+  const previousStatus = job.status;
+  const previousProgress = job.progress;
+
+  job.upload = upload;
+
+  const nextProgress = Math.max(job.progress, statusProgressFloor("uploaded"));
+  const updated = applyMonotonicUpdate(job, "uploaded", nextProgress);
+
+  if (
+    updated.updatedAt === previousUpdatedAt &&
+    updated.status === previousStatus &&
+    updated.progress === previousProgress
+  ) {
+    updated.updatedAt = new Date().toISOString();
+  }
+
+  return updated;
+};
+
+export const recordJobTranscribed = (
+  jobId: string,
+  practiceId: string,
+  sessionId: string
+): JobRecord | null => {
+  const job = getJobWithProgress(jobId);
+  if (!job || job.practiceId !== practiceId) return null;
+  if (job.sessionId !== sessionId) return null;
+
+  const nextProgress = Math.max(job.progress, statusProgressFloor("transcribed"));
+  return applyMonotonicUpdate(job, "transcribed", nextProgress);
+};
+
+export const recordJobDrafted = (
+  jobId: string,
+  practiceId: string,
+  sessionId: string
+): JobRecord | null => {
+  const job = getJobWithProgress(jobId);
+  if (!job || job.practiceId !== practiceId) return null;
+  if (job.sessionId !== sessionId) return null;
+
+  const nextProgress = Math.max(job.progress, statusProgressFloor("drafted"));
+  return applyMonotonicUpdate(job, "drafted", nextProgress);
+};
+
+export const recordJobExported = (
+  jobId: string,
+  practiceId: string,
+  sessionId: string
+): JobRecord | null => {
+  const job = getJobWithProgress(jobId);
+  if (!job || job.practiceId !== practiceId) return null;
+  if (job.sessionId !== sessionId) return null;
+
+  const nextProgress = Math.max(job.progress, statusProgressFloor("exported"));
+  return applyMonotonicUpdate(job, "exported", nextProgress);
+};
+
+export const recordJobCompleted = (
+  jobId: string,
+  practiceId: string,
+  sessionId: string
+): JobRecord | null => {
+  const job = getJobWithProgress(jobId);
+  if (!job || job.practiceId !== practiceId) return null;
+  if (job.sessionId !== sessionId) return null;
+
+  const nextProgress = Math.max(job.progress, statusProgressFloor("complete"));
+  return applyMonotonicUpdate(job, "complete", nextProgress);
+};
+
 export const getJobEvents = (jobId: string): JobStatusEvent[] | null => {
   const job = getJobWithProgress(jobId);
   if (!job) return null;
@@ -236,3 +323,9 @@ export const purgeExpired = (): number => {
   }
   return purged;
 };
+
+
+
+
+
+

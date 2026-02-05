@@ -1,401 +1,650 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { JobRecord } from "@/lib/jobs/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  MicrophoneIcon,
+  PauseIcon,
+  StopIcon,
+  ArrowUpTrayIcon,
+  CloudArrowUpIcon,
+} from "@heroicons/react/24/solid";
 
-const STORAGE_KEY = "asn_current_job";
-const POLL_MS = 2000;
+type Tab = "record" | "upload";
+type UiStatus = "Idle" | "Recording" | "Paused" | "Ready" | "Uploading" | "Error";
 
-export default function JobPanel() {
-  const [job, setJob] = useState<JobRecord | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [demoLoginError, setDemoLoginError] = useState<string | null>(null);
-  const [demoLogoutError, setDemoLogoutError] = useState<string | null>(null);
-  const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
-  const [authedLabel, setAuthedLabel] = useState<string | null>(null);
-  const [isBusy, setIsBusy] = useState(false);
-  const isDev = process.env.NODE_ENV !== "production";
+type JobStatus = "queued" | "running" | "complete" | "failed" | "deleted";
+type JobStage = "upload" | "transcribe" | "draft" | "export";
+
+type JobStatusResponse = {
+  jobId: string;
+  sessionId: string;
+  status: JobStatus;
+  stage: JobStage;
+  progress: number;
+  updatedAt: string;
+  errorMessage: string | null;
+};
+
+type UploadResponse = {
+  artifactId: string;
+  filename: string;
+  mime: string;
+  bytes: number;
+  createdAt: string;
+  downloadUrl?: string;
+};
+
+type CreateJobResponse = {
+  jobId: string;
+  sessionId: string;
+  statusUrl: string;
+};
+
+const POLL_MS = 1500;
+const MAX_DURATION_SEC = 30 * 60;
+
+const EXT_BY_MIME: Record<string, string> = {
+  "audio/webm": ".webm",
+  "audio/wav": ".wav",
+  "audio/x-wav": ".wav",
+  "audio/mpeg": ".mp3",
+  "audio/mp4": ".m4a",
+  "audio/x-m4a": ".m4a",
+};
+
+const MIME_BY_EXT: Record<string, string> = {
+  ".webm": "audio/webm",
+  ".wav": "audio/wav",
+  ".mp3": "audio/mpeg",
+  ".m4a": "audio/mp4",
+};
+
+function formatTime(totalSec: number) {
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function clampProgress(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function toTitle(value: string) {
+  if (!value) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function normalizeMime(value: string) {
+  return value.split(";")[0]?.trim().toLowerCase();
+}
+
+function inferMimeFromFilename(filename: string) {
+  const dot = filename.lastIndexOf(".");
+  if (dot === -1) return null;
+  const ext = filename.slice(dot).toLowerCase();
+  return MIME_BY_EXT[ext] ?? null;
+}
+
+function ProgressRow({ label, value }: { label: string; value: number }) {
+  const clamped = clampProgress(value);
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-slate-700 dark:text-slate-200 font-medium">{label}</span>
+        <span className="text-slate-400 font-mono text-xs">{clamped}%</span>
+      </div>
+      <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-indigo-600 transition-all"
+          style={{ width: `${clamped}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function WaveformPlaceholder() {
+  return (
+    <svg viewBox="0 0 600 60" className="w-full h-10">
+      <g className="text-slate-300 dark:text-slate-600" fill="currentColor">
+        {Array.from({ length: 60 }).map((_, i) => {
+          const h = 8 + (i % 10) * 4;
+          const x = 10 * i;
+          const y = (60 - h) / 2;
+          return <rect key={i} x={x} y={y} width="6" height={h} rx="3" />;
+        })}
+      </g>
+    </svg>
+  );
+}
+
+type JobPanelProps = {
+  sessionId?: string;
+};
+
+type UploadPayload = {
+  blob: Blob;
+  filename: string;
+  mime: string;
+};
+
+export default function JobPanel({ sessionId }: JobPanelProps) {
+  const [tab, setTab] = useState<Tab>("record");
+  const [status, setStatus] = useState<UiStatus>("Idle");
+  const [error, setError] = useState<string>("");
+
+  const resolvedSessionId = typeof sessionId === "string" ? sessionId.trim() : "";
+  const hasSession = resolvedSessionId.length > 0;
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const tickRef = useRef<number | null>(null);
+  const pollRef = useRef<number | null>(null);
+
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const [pTranscribe, setPTranscribe] = useState(0);
+  const [pDraft, setPDraft] = useState(0);
+  const [pExport, setPExport] = useState(0);
+
+  const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [statusUrl, setStatusUrl] = useState<string | null>(null);
+
+  const canRecord = useMemo(
+    () => typeof window !== "undefined" && !!navigator.mediaDevices,
+    []
+  );
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<JobRecord>;
-      if (!parsed?.jobId || !parsed?.expiresAt) {
-        window.localStorage.removeItem(STORAGE_KEY);
-        setJob(null);
-        return;
+    return () => {
+      if (tickRef.current) window.clearInterval(tickRef.current);
+      tickRef.current = null;
+      if (pollRef.current) window.clearInterval(pollRef.current);
+      pollRef.current = null;
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
       }
-      if (Date.parse(parsed.expiresAt) <= Date.now()) {
-        window.localStorage.removeItem(STORAGE_KEY);
-        setJob(null);
-        return;
-      }
-      const nowIso = new Date().toISOString();
-      const baseStatus = parsed.status ?? "queued";
-      const baseCreatedAt = parsed.createdAt ?? nowIso;
-      const baseProgress = typeof parsed.progress === "number" ? parsed.progress : 0;
-      setJob({
-        jobId: parsed.jobId,
-        practiceId: parsed.practiceId ?? "",
-        status: baseStatus,
-        progress: baseProgress,
-        createdAt: baseCreatedAt,
-        updatedAt: parsed.updatedAt ?? baseCreatedAt,
-        statusHistory:
-          Array.isArray(parsed.statusHistory) && parsed.statusHistory.length > 0
-            ? parsed.statusHistory
-            : [{ status: baseStatus, at: baseCreatedAt, progress: baseProgress }],
-        expiresAt: parsed.expiresAt,
+    };
+  }, []);
+
+  function resetPipeline() {
+    setJobStatus(null);
+    setJobId(null);
+    setStatusUrl(null);
+    setPTranscribe(0);
+    setPDraft(0);
+    setPExport(0);
+    if (pollRef.current) window.clearInterval(pollRef.current);
+    pollRef.current = null;
+  }
+
+  function startTicker() {
+    if (tickRef.current) return;
+    tickRef.current = window.setInterval(() => {
+      setElapsedSec((s) => {
+        const next = s + 1;
+        return next >= MAX_DURATION_SEC ? MAX_DURATION_SEC : next;
       });
-    } catch (error) {
-      window.localStorage.removeItem(STORAGE_KEY);
-      setJob(null);
-      setMessage("Unable to read saved job.");
+    }, 1000);
+  }
+
+  function stopTicker() {
+    if (!tickRef.current) return;
+    window.clearInterval(tickRef.current);
+    tickRef.current = null;
+  }
+
+  async function startRecording() {
+    setError("");
+    resetPipeline();
+    if (!canRecord) {
+      setStatus("Error");
+      setError("Recording not supported in this browser/environment.");
+      return;
     }
-  }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const response = await fetch("/api/me", { credentials: "include" });
-        if (cancelled) return;
-        if (!response.ok) {
-          setIsAuthed(false);
-          setAuthedLabel(null);
-          return;
-        }
-        const data = (await response.json()) as { email?: string; role?: string };
-        setIsAuthed(true);
-        if (data?.email || data?.role) {
-          const labelParts = [data.email, data.role].filter(Boolean);
-          setAuthedLabel(labelParts.join(" "));
-        } else {
-          setAuthedLabel(null);
-        }
-      } catch (error) {
-        if (cancelled) return;
-        setIsAuthed(false);
-        setAuthedLabel(null);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const expiresAtLabel = useMemo(() => {
-    if (!job?.expiresAt) return null;
-    const date = new Date(job.expiresAt);
-    return Number.isNaN(date.getTime()) ? job.expiresAt : date.toLocaleString();
-  }, [job?.expiresAt]);
-
-  const isExpired = useMemo(() => {
-    if (!job?.expiresAt) return false;
-    const timestamp = Date.parse(job.expiresAt);
-    if (Number.isNaN(timestamp)) return false;
-    return timestamp <= Date.now();
-  }, [job?.expiresAt]);
-
-  const handleCreate = async () => {
-    setIsBusy(true);
-    setMessage(null);
     try {
-      const response = await fetch("/api/jobs/create", { method: "POST" });
-      if (response.status === 401) {
-        setMessage("Please sign in to create a job.");
-        return;
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      chunksRef.current = [];
+      setRecordedBlob(null);
+      setSelectedFile(null);
+      setElapsedSec(0);
+
+      const mr = new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mr.onstop = () => {
+        stopTicker();
+        stream.getTracks().forEach((t) => t.stop());
+
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || "audio/webm" });
+        setRecordedBlob(blob);
+        setStatus("Ready");
+      };
+
+      mr.start(250);
+      setStatus("Recording");
+      startTicker();
+    } catch (e: any) {
+      setStatus("Error");
+      setError(e?.message || "Microphone permission denied or unavailable.");
+    }
+  }
+
+  function pauseRecording() {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+
+    if (mr.state === "recording") {
+      mr.pause();
+      setStatus("Paused");
+      stopTicker();
+    } else if (mr.state === "paused") {
+      mr.resume();
+      setStatus("Recording");
+      startTicker();
+    }
+  }
+
+  function stopRecording() {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    if (mr.state !== "inactive") {
+      mr.stop();
+    }
+  }
+
+  function pickFile() {
+    fileInputRef.current?.click();
+  }
+
+  function onFileChange(f: File | null) {
+    resetPipeline();
+    setSelectedFile(f);
+    setRecordedBlob(null);
+    setElapsedSec(0);
+    setStatus(f ? "Ready" : "Idle");
+  }
+
+  function resolveUploadPayload(): UploadPayload | null {
+    if (selectedFile) {
+      const inferred = normalizeMime(selectedFile.type) || inferMimeFromFilename(selectedFile.name) || "";
+      const mime = inferred || "application/octet-stream";
+      return { blob: selectedFile, filename: selectedFile.name, mime };
+    }
+
+    if (recordedBlob) {
+      const mime = normalizeMime(recordedBlob.type) || "audio/webm";
+      const ext = EXT_BY_MIME[mime] ?? ".webm";
+      return { blob: recordedBlob, filename: `recording${ext}`, mime };
+    }
+
+    return null;
+  }
+
+  async function readErrorMessage(response: Response, fallback: string) {
+    try {
+      const data = (await response.json()) as {
+        error?: { message?: string } | string;
+      };
+      if (typeof data?.error === "string") return data.error;
+      if (typeof data?.error === "object" && data.error?.message) return data.error.message;
+    } catch {
+      // ignore
+    }
+    return fallback;
+  }
+
+  function applyProgressFromStatus(data: JobStatusResponse) {
+    if (data.status === "failed") {
+      return;
+    }
+    if (data.status === "deleted") {
+      setPTranscribe(0);
+      setPDraft(0);
+      setPExport(0);
+      return;
+    }
+    if (data.status === "complete") {
+      setPTranscribe(100);
+      setPDraft(100);
+      setPExport(100);
+      return;
+    }
+
+    const progress = clampProgress(data.progress);
+    if (data.stage === "upload") {
+      setPTranscribe(0);
+      setPDraft(0);
+      setPExport(0);
+      return;
+    }
+    if (data.stage === "transcribe") {
+      setPTranscribe(progress);
+      setPDraft(0);
+      setPExport(0);
+      return;
+    }
+    if (data.stage === "draft") {
+      setPTranscribe(100);
+      setPDraft(progress);
+      setPExport(0);
+      return;
+    }
+    if (data.stage === "export") {
+      setPTranscribe(100);
+      setPDraft(100);
+      setPExport(progress);
+    }
+  }
+
+  async function pollStatus(url: string) {
+    try {
+      const response = await fetch(url, { credentials: "include" });
       if (!response.ok) {
-        setMessage("Unable to create a job.");
+        const message = await readErrorMessage(response, "Unable to read job status.");
+        setStatus("Error");
+        setError(message);
+        if (pollRef.current) window.clearInterval(pollRef.current);
+        pollRef.current = null;
         return;
       }
-      const created = (await response.json()) as JobRecord;
-      if (!created?.jobId || !created?.expiresAt) {
-        setMessage("Unexpected job response.");
-        return;
+
+      const data = (await response.json()) as JobStatusResponse;
+      setJobStatus(data);
+      applyProgressFromStatus(data);
+
+      if (data.status === "failed" && data.errorMessage) {
+        setError(data.errorMessage);
       }
-      setJob(created);
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(created));
-    } catch (error) {
-      setMessage("Unable to create a job.");
-    } finally {
-      setIsBusy(false);
+
+      if (data.status === "complete" || data.status === "failed" || data.status === "deleted") {
+        if (pollRef.current) window.clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    } catch {
+      setStatus("Error");
+      setError("Unable to read job status.");
+      if (pollRef.current) window.clearInterval(pollRef.current);
+      pollRef.current = null;
     }
-  };
+  }
 
-  useEffect(() => {
-    if (!job?.jobId) return;
+  function startPolling(url: string) {
+    if (pollRef.current) window.clearInterval(pollRef.current);
+    pollRef.current = null;
+    void pollStatus(url);
+    pollRef.current = window.setInterval(() => {
+      void pollStatus(url);
+    }, POLL_MS);
+  }
 
-    let cancelled = false;
-    let inFlight = false;
-    let activeController: AbortController | null = null;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    const currentJobId = job.jobId;
-
-    const pollOnce = async () => {
-      if (cancelled || inFlight) return;
-      inFlight = true;
-      activeController?.abort();
-      activeController = new AbortController();
-      try {
-        const response = await fetch(`/api/jobs/${currentJobId}`, {
-          method: "GET",
-          signal: activeController.signal,
-        });
-
-        if (response.status === 401) {
-          if (!cancelled) {
-            setMessage("Please sign in to view job status.");
-            setJob(null);
-            window.localStorage.removeItem(STORAGE_KEY);
-          }
-          cancelled = true;
-          if (intervalId) clearInterval(intervalId);
-          return;
-        }
-
-        if (response.status === 404) {
-          if (!cancelled) {
-            setMessage("Job not found (server restarted).");
-            setJob(null);
-            window.localStorage.removeItem(STORAGE_KEY);
-          }
-          cancelled = true;
-          if (intervalId) clearInterval(intervalId);
-          return;
-        }
-
-        if (!response.ok) {
-          if (!cancelled) {
-            setMessage("Unable to load job status.");
-          }
-          return;
-        }
-
-        const next = (await response.json()) as JobRecord;
-        if (!cancelled) {
-          setJob(next);
-        }
-
-        if (next?.status === "complete" || next?.status === "failed") {
-          cancelled = true;
-          if (intervalId) clearInterval(intervalId);
-        }
-      } catch (error) {
-        if (!cancelled && (error as { name?: string })?.name !== "AbortError") {
-          setMessage("Unable to load job status.");
-        }
-      } finally {
-        inFlight = false;
-      }
-    };
-
-    intervalId = setInterval(() => void pollOnce(), POLL_MS);
-    void pollOnce();
-
-    return () => {
-      cancelled = true;
-      activeController?.abort();
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [job?.jobId]);
-
-  const handleDelete = async () => {
-    if (!job) return;
-    setIsBusy(true);
-    setMessage(null);
-    try {
-      const response = await fetch(`/api/jobs/${job.jobId}`, { method: "DELETE" });
-      if (response.status === 401) {
-        setMessage("Please sign in to delete a job.");
-        return;
-      }
-      if (!response.ok && response.status !== 404) {
-        setMessage("Unable to delete the job.");
-        return;
-      }
-      setJob(null);
-      window.localStorage.removeItem(STORAGE_KEY);
-    } catch (error) {
-      setMessage("Unable to delete the job.");
-    } finally {
-      setIsBusy(false);
+  async function uploadAndCreateJob() {
+    if (!hasSession) {
+      setStatus("Error");
+      setError("Open a session page to upload audio.");
+      return;
     }
-  };
 
-  const handleDemoLogin = async () => {
-    setIsBusy(true);
-    setDemoLoginError(null);
-    try {
-      const response = await fetch(
-        "/api/auth/dev-login?email=test@example.com&role=admin",
-        { method: "GET", credentials: "include" }
-      );
-      if (!response.ok) {
-        setDemoLoginError(
-          response.status === 404 ? "Demo login unavailable." : "Demo login failed."
-        );
-        return;
-      }
-      window.location.reload();
-    } catch (error) {
-      setDemoLoginError("Demo login failed.");
-    } finally {
-      setIsBusy(false);
-    }
-  };
+    const payload = resolveUploadPayload();
+    if (!payload) return;
 
-  const handleLogout = async () => {
-    setIsBusy(true);
-    setDemoLogoutError(null);
+    setError("");
+    setStatus("Uploading");
+    setJobStatus(null);
+    setPTranscribe(0);
+    setPDraft(0);
+    setPExport(0);
+
     try {
-      let response = await fetch("/api/auth/logout", {
+      const uploadUrl = `/api/sessions/${encodeURIComponent(resolvedSessionId)}/audio?filename=${encodeURIComponent(
+        payload.filename
+      )}`;
+
+      const uploadResponse = await fetch(uploadUrl, {
         method: "POST",
         credentials: "include",
+        headers: { "Content-Type": payload.mime },
+        body: payload.blob,
       });
-      if (response.status === 405) {
-        response = await fetch("/api/auth/logout", {
-          method: "GET",
-          credentials: "include",
-        });
-      }
-      if (!response.ok) {
-        setDemoLogoutError(
-          response.status === 404 ? "Logout unavailable." : "Logout failed."
-        );
+
+      if (!uploadResponse.ok) {
+        const message = await readErrorMessage(uploadResponse, "Unable to upload audio.");
+        setStatus("Error");
+        setError(message);
         return;
       }
-      window.localStorage.removeItem(STORAGE_KEY);
-      window.location.reload();
-    } catch (error) {
-      setDemoLogoutError("Logout failed.");
-    } finally {
-      setIsBusy(false);
-    }
-  };
 
-  const showDemoLogin = isDev && isAuthed === false;
-  const showDevAuthControls = isDev && isAuthed === true;
+      const uploadData = (await uploadResponse.json()) as UploadResponse;
+
+      const createResponse = await fetch("/api/jobs/create", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: resolvedSessionId,
+          audioArtifactId: uploadData.artifactId,
+        }),
+      });
+
+      if (!createResponse.ok) {
+        const message = await readErrorMessage(createResponse, "Unable to create job.");
+        setStatus("Error");
+        setError(message);
+        return;
+      }
+
+      const jobData = (await createResponse.json()) as CreateJobResponse;
+      setJobId(jobData.jobId);
+      setStatusUrl(jobData.statusUrl);
+      setJobStatus(null);
+      startPolling(jobData.statusUrl);
+    } catch {
+      setStatus("Error");
+      setError("Unable to upload audio.");
+    }
+  }
+
+  const payloadReady = !!resolveUploadPayload();
+  const isDeleted = jobStatus?.status === "deleted";
+  const uploadEnabled =
+    hasSession &&
+    status === "Ready" &&
+    payloadReady &&
+    !isDeleted;
+
+  const statusKind = jobStatus ? jobStatus.status : status;
+  const statusLabel = jobStatus ? toTitle(jobStatus.status) : status;
+
+  const statusPill = (() => {
+    const base = "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold";
+    if (statusKind === "complete") return `${base} bg-emerald-100 text-emerald-700`;
+    if (statusKind === "failed") return `${base} bg-rose-100 text-rose-700`;
+    if (statusKind === "deleted") return `${base} bg-slate-200 text-slate-600`;
+    if (statusKind === "queued" || statusKind === "running" || statusKind === "Uploading")
+      return `${base} bg-indigo-100 text-indigo-700`;
+    if (statusKind === "Recording" || statusKind === "Paused")
+      return `${base} bg-rose-100 text-rose-700`;
+    if (statusKind === "Error") return `${base} bg-amber-100 text-amber-800`;
+    return `${base} bg-slate-100 text-slate-600`;
+  })();
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">Job panel</h2>
-          <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
-            Ephemeral session work
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={isBusy}
-            className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Start new job
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={!job || isBusy}
-            className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Delete now
-          </button>
+    <section className="card-base h-full flex flex-col">
+      <div className="flex-none">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Job Panel</h2>
+        <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-200">
+          Audio Input
+        </p>
+
+        <div className="mt-3 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex gap-8 text-sm font-semibold">
+            <button
+              type="button"
+              onClick={() => setTab("record")}
+              className={`pb-2 ${
+                tab === "record"
+                  ? "text-indigo-700 dark:text-indigo-200 border-b-2 border-indigo-600"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              Record
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("upload")}
+              className={`pb-2 ${
+                tab === "upload"
+                  ? "text-indigo-700 dark:text-indigo-200 border-b-2 border-indigo-600"
+                  : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              }`}
+            >
+              Upload
+            </button>
+          </div>
         </div>
       </div>
-      {showDevAuthControls ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          <span>
-            Signed in (dev)
-            {authedLabel ? `: ${authedLabel}` : null}
-          </span>
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={isBusy}
-            className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Logout
-          </button>
-          {demoLogoutError ? (
-            <span className="text-rose-600">{demoLogoutError}</span>
-          ) : null}
-        </div>
-      ) : null}
-      {job ? (
-        <div className="mt-4 grid gap-2 text-sm text-slate-700">
-          <div>
-            <span className="font-semibold text-slate-900">Job ID:</span>{" "}
-            <span className="font-mono">{job.jobId.slice(0, 8)}</span>
-            <span className="text-slate-400">â€¦</span>
-          </div>
-          <div>
-            <span className="font-semibold text-slate-900">Status:</span>{" "}
-            <span className="capitalize">{job.status}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <progress max={100} value={job.progress} className="h-2 w-40" />
-            <span>{job.progress}%</span>
-          </div>
-          <div>
-            <span className="font-semibold text-slate-900">Updated:</span>{" "}
-            <span>
-              {job.updatedAt ? new Date(job.updatedAt).toLocaleTimeString() : "â€”"}
-            </span>
-          </div>
-          {job.statusHistory?.length ? (
-            <div className="mt-2 text-sm">
-              <div className="font-semibold text-slate-900">Timeline:</div>
-              <ul className="mt-1 grid gap-1">
-                {job.statusHistory.map((event, idx) => {
-                  const time = new Date(event.at);
-                  return (
-                    <li
-                      key={`${event.at}-${idx}`}
-                      className="flex items-center gap-2 text-slate-700"
-                    >
-                      <span className="tabular-nums text-slate-500">
-                        {Number.isNaN(time.getTime()) ? "â€”" : time.toLocaleTimeString()}
-                      </span>
-                      <span className="capitalize">{event.status}</span>
-                      <span className="text-slate-500">({event.progress}%)</span>
-                    </li>
-                  );
-                })}
-              </ul>
+
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pt-4 space-y-4">
+        {tab === "record" ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-center">
+              <button
+                type="button"
+                onClick={status === "Recording" || status === "Paused" ? stopRecording : startRecording}
+                className="relative grid place-items-center h-20 w-20 rounded-full bg-rose-600 shadow-md hover:bg-rose-500 transition-colors ring-1 ring-rose-700/20"
+                title={
+                  status === "Recording" || status === "Paused"
+                    ? "Stop recording"
+                    : "Start recording"
+                }
+              >
+                <MicrophoneIcon className="h-10 w-10 text-white" />
+              </button>
             </div>
-          ) : null}
-          <div>
-            <span className="font-semibold text-slate-900">Expires:</span>{" "}
-            <span>{expiresAtLabel ?? job.expiresAt}</span>
-            {isExpired ? <span className="ml-2 text-rose-600">(expired)</span> : null}
+
+            <div className="px-2">
+              <WaveformPlaceholder />
+            </div>
+
+            <div className="text-center font-mono text-sm text-slate-600 dark:text-slate-300">
+              {formatTime(elapsedSec)} / {formatTime(MAX_DURATION_SEC)}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={pauseRecording}
+                disabled={!(status === "Recording" || status === "Paused")}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                <PauseIcon className="h-5 w-5" />
+                {status === "Paused" ? "Resume" : "Pause"}
+              </button>
+
+              <button
+                type="button"
+                onClick={stopRecording}
+                disabled={!(status === "Recording" || status === "Paused")}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                <StopIcon className="h-5 w-5" />
+                Stop
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/*"
+              className="hidden"
+              onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+            />
+
+            <button
+              type="button"
+              onClick={pickFile}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 px-4 py-6 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+            >
+              <ArrowUpTrayIcon className="h-5 w-5 text-slate-500" />
+              {selectedFile ? "Change audio file" : "Choose an audio file"}
+            </button>
+
+            {selectedFile && (
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+                <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                  {selectedFile.name}
+                </div>
+                <div className="text-xs text-slate-500 font-mono mt-1">
+                  {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="space-y-4 pt-2">
+          <ProgressRow label="Transcribe" value={pTranscribe} />
+          <ProgressRow label="Draft" value={pDraft} />
+          <ProgressRow label="Export" value={pExport} />
+        </div>
+
+        {!hasSession ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Open a session page to upload audio.
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          disabled={!uploadEnabled}
+          onClick={uploadAndCreateJob}
+          className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-700 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-indigo-600 disabled:opacity-50 transition-colors"
+        >
+          <CloudArrowUpIcon className="h-5 w-5" />
+          Upload audio
+        </button>
+
+        <div className="flex items-center justify-between pt-1">
+          <div className="text-sm text-slate-600 dark:text-slate-300">
+            Status: <span className={statusPill}>{statusLabel}</span>
+          </div>
+          <div className="text-xs text-slate-400 font-mono truncate max-w-[55%]">
+            {resolvedSessionId ? `session: ${resolvedSessionId}` : ""}
           </div>
         </div>
-      ) : (
-        <p className="mt-4 text-sm text-slate-600">No active job yet.</p>
-      )}
-      {message ? <p className="mt-4 text-sm text-rose-600">{message}</p> : null}
-      {showDemoLogin ? (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            disabled={isBusy}
-            className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Demo Login
-          </button>
-          {demoLoginError ? (
-            <span className="text-xs text-rose-600">{demoLoginError}</span>
-          ) : null}
-        </div>
-      ) : null}
+
+        {jobId ? (
+          <div className="text-xs text-slate-400 font-mono truncate">job: {jobId}</div>
+        ) : null}
+
+        {status === "Error" && error && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+            {error}
+          </div>
+        )}
+
+        {jobStatus?.status === "failed" && jobStatus.errorMessage ? (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+            {jobStatus.errorMessage}
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }
+
+
+
