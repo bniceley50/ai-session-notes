@@ -1,4 +1,4 @@
-﻿import fs from "node:fs/promises";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { ARTIFACTS_ROOT, safePathSegment } from "@/lib/jobs/artifacts";
 
@@ -18,7 +18,7 @@ export type JobStatusFile = {
 const JOB_INDEX_DIR = path.resolve(ARTIFACTS_ROOT, "_index", "jobs");
 
 export const getSessionJobsDir = (sessionId: string): string =>
-  path.resolve(ARTIFACTS_ROOT, safePathSegment(sessionId), "jobs");
+  path.resolve(ARTIFACTS_ROOT, "sessions", safePathSegment(sessionId), "jobs");
 
 export const getJobDir = (sessionId: string, jobId: string): string =>
   path.resolve(getSessionJobsDir(sessionId), safePathSegment(jobId));
@@ -26,23 +26,47 @@ export const getJobDir = (sessionId: string, jobId: string): string =>
 export const getJobStatusPath = (sessionId: string, jobId: string): string =>
   path.join(getJobDir(sessionId, jobId), "status.json");
 
+export const getJobTranscriptPath = (sessionId: string, jobId: string): string =>
+  path.join(getJobDir(sessionId, jobId), "transcript", "transcript.txt");
+
+export const getJobDraftPath = (sessionId: string, jobId: string): string =>
+  path.join(getJobDir(sessionId, jobId), "draft", "note.md");
+
+export const getJobExportPath = (sessionId: string, jobId: string): string =>
+  path.join(getJobDir(sessionId, jobId), "export", "note.txt");
+
+export const getJobLogPath = (sessionId: string, jobId: string): string =>
+  path.join(getJobDir(sessionId, jobId), "logs", "pipeline.log");
+
 export const getJobIndexPath = (jobId: string): string =>
   path.resolve(JOB_INDEX_DIR, `${safePathSegment(jobId)}.json`);
 
-export const writeJobIndex = async (jobId: string, sessionId: string): Promise<void> => {
+export const writeJobIndex = async (
+  jobId: string,
+  sessionId: string,
+  createdAt = new Date().toISOString()
+): Promise<void> => {
   await fs.mkdir(JOB_INDEX_DIR, { recursive: true });
-  const payload = { jobId, sessionId, updatedAt: new Date().toISOString() };
+  const payload = { jobId, sessionId, createdAt };
   await fs.writeFile(getJobIndexPath(jobId), JSON.stringify(payload, null, 2), "utf8");
 };
 
 export const readJobIndex = async (
   jobId: string
-): Promise<{ jobId: string; sessionId: string } | null> => {
+): Promise<{ jobId: string; sessionId: string; createdAt?: string } | null> => {
   try {
     const raw = await fs.readFile(getJobIndexPath(jobId), "utf8");
-    const data = JSON.parse(raw) as { jobId?: unknown; sessionId?: unknown };
+    const data = JSON.parse(raw) as {
+      jobId?: unknown;
+      sessionId?: unknown;
+      createdAt?: unknown;
+    };
     if (typeof data?.jobId !== "string" || typeof data?.sessionId !== "string") return null;
-    return { jobId: data.jobId, sessionId: data.sessionId };
+    return {
+      jobId: data.jobId,
+      sessionId: data.sessionId,
+      createdAt: typeof data.createdAt === "string" ? data.createdAt : undefined,
+    };
   } catch {
     return null;
   }
@@ -88,30 +112,3 @@ export const updateJobStatus = async (
   await writeJobStatus(next);
   return next;
 };
-
-export const scheduleJobSimulation = (jobId: string): void => {
-  const steps: Array<{ delayMs: number; status: JobStatus; stage: JobStage; progress: number }> = [
-    { delayMs: 1000, status: "running", stage: "transcribe", progress: 10 },
-    { delayMs: 2500, status: "running", stage: "transcribe", progress: 55 },
-    { delayMs: 4000, status: "running", stage: "transcribe", progress: 100 },
-    { delayMs: 5500, status: "running", stage: "draft", progress: 35 },
-    { delayMs: 7000, status: "running", stage: "draft", progress: 100 },
-    { delayMs: 8500, status: "running", stage: "export", progress: 45 },
-    { delayMs: 10000, status: "running", stage: "export", progress: 100 },
-    { delayMs: 11500, status: "complete", stage: "export", progress: 100 },
-  ];
-
-  for (const step of steps) {
-    setTimeout(() => {
-      void updateJobStatus(jobId, {
-        status: step.status,
-        stage: step.stage,
-        progress: step.progress,
-        errorMessage: null,
-      }).catch(() => {});
-    }, step.delayMs);
-  }
-};
-
-
-

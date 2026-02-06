@@ -54,3 +54,5 @@ next-env.d.ts
 
 # Tool backup files (PowerShell Copy-Item backups)
 tools/*.bak-*
+
+.env*.local

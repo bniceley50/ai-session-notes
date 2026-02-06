@@ -13,6 +13,7 @@
         "test:watch": "node --test --watch --experimental-strip-types"
     },
     "dependencies": {
+        "@heroicons/react": "^2.2.0",
         "@supabase/supabase-js": "^2.91.0",
         "jose": "^6.1.3",
         "next": "16.1.6",

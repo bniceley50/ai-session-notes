@@ -2,7 +2,7 @@
 import { readSessionFromCookieHeader } from "@/lib/auth/session";
 import { jsonError } from "@/lib/api/errors";
 import { readSessionOwnership } from "@/lib/sessions/ownership";
-import { readJobIndex, getJobDraftPath } from "@/lib/jobs/status";
+import { readJobIndex, getJobTranscriptPath } from "@/lib/jobs/status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
     return jsonError(404, "NOT_FOUND", "job not found");
   }
 
-  const p = getJobDraftPath(idx.sessionId, jobId);
+  const p = getJobTranscriptPath(idx.sessionId, jobId);
 
   try {
     const text = await fs.readFile(p, "utf8");
@@ -35,7 +35,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
   } catch (e: any) {
-    if (e?.code === "ENOENT") return jsonError(404, "NOT_FOUND", "draft not found");
-    return jsonError(500, "INTERNAL", "failed to read draft");
+    if (e?.code === "ENOENT") return jsonError(404, "NOT_FOUND", "transcript not found");
+    return jsonError(500, "INTERNAL", "failed to read transcript");
   }
 }

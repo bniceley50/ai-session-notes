@@ -103,11 +103,14 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     return jsonError(400, "BAD_REQUEST", "Audio body required.");
   }
 
-  const mime = normalizeMime(request.headers.get("content-type") ?? "");
-  const extFromMime = MIME_EXTENSION[mime];
-  if (!extFromMime) {
-    return jsonError(415, "UNSUPPORTED_MEDIA_TYPE", "Unsupported media type.");
+  const ct = request.headers.get("content-type") ?? "";
+  const base = normalizeMime(ct);
+  // Allow only plain audio/webm or video/webm after stripping codecs; reject everything else.
+  if (!(base === "audio/webm" || base === "video/webm")) {
+    return jsonError(415, "UNSUPPORTED_MEDIA_TYPE", `Unsupported media type: ${ct}`);
   }
+  const mime = base;
+  const extFromMime = MIME_EXTENSION[mime] ?? ".webm";
 
   const url = new URL(request.url);
   const rawFilename = url.searchParams.get("filename") ?? "";

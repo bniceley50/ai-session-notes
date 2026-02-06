@@ -10,18 +10,28 @@ type SessionDetailProps = {
 export default function SessionDetail({ session }: SessionDetailProps) {
   const storageKey = useMemo(() => `asn:note:${session.id}`, [session.id]);
 
-  const [note, setNote] = useState(() => {
-    try {
-      const saved = window.localStorage.getItem(storageKey);
-      if (saved !== null) return saved;
-    } catch {
-      // ignore storage errors (privacy mode, blocked storage, etc.)
-    }
-    return session.note;
-  });
+  const [note, setNote] = useState(session.note);
 
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
   const saveTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    try {
+      const saved = window.localStorage.getItem(storageKey);
+      if (saved !== null) {
+        window.setTimeout(() => {
+          if (cancelled) return;
+          setNote((current) => (current === saved ? current : saved));
+        }, 0);
+      }
+    } catch {
+      // ignore storage errors (privacy mode, blocked storage, etc.)
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [storageKey]);
   // Autosave note to localStorage (debounced)
   useEffect(() => {
     try {

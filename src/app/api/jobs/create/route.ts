@@ -6,15 +6,10 @@ import { readSessionFromCookieHeader } from "@/lib/auth/session";
 import { jsonError } from "@/lib/api/errors";
 import { safePathSegment } from "@/lib/jobs/artifacts";
 import { readAudioMetadata } from "@/lib/jobs/audio";
+import { runJobPipeline } from "@/lib/jobs/pipeline";
 import { createJob } from "@/lib/jobs/store";
 import { readSessionOwnership } from "@/lib/sessions/ownership";
-import {
-  getJobDir,
-  scheduleJobSimulation,
-  writeJobIndex,
-  writeJobStatus,
-  type JobStatusFile,
-} from "@/lib/jobs/status";
+import { getJobDir, writeJobIndex, writeJobStatus, type JobStatusFile } from "@/lib/jobs/status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,9 +78,9 @@ export async function POST(request: Request): Promise<Response> {
     // Best-effort compatibility with legacy job routes.
   }
 
-  if (process.env.JOBS_SIMULATE === "1" && process.env.NODE_ENV !== "production") {
-    scheduleJobSimulation(jobId);
-  }
+  setTimeout(() => {
+    void runJobPipeline({ sessionId, jobId, artifactId: audioArtifactId });
+  }, 0);
 
   return NextResponse.json({
     jobId,

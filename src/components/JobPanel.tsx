@@ -457,6 +457,10 @@ export default function JobPanel({ sessionId }: JobPanelProps) {
 
   const payloadReady = !!resolveUploadPayload();
   const isDeleted = jobStatus?.status === "deleted";
+  const outputJobId = jobStatus?.jobId ?? null;
+  const transcriptUrl = outputJobId ? `/api/jobs/${outputJobId}/transcript` : "";
+  const draftUrl = outputJobId ? `/api/jobs/${outputJobId}/draft` : "";
+  const exportUrl = outputJobId ? `/api/jobs/${outputJobId}/export` : "";
   const uploadEnabled =
     hasSession &&
     status === "Ready" &&
@@ -600,6 +604,38 @@ export default function JobPanel({ sessionId }: JobPanelProps) {
           <ProgressRow label="Draft" value={pDraft} />
           <ProgressRow label="Export" value={pExport} />
         </div>
+
+        {jobStatus?.status === "complete" && outputJobId ? (
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Outputs
+            </div>
+            <a
+              href={transcriptUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="block text-sm font-semibold text-indigo-700 dark:text-indigo-300 hover:underline"
+            >
+              Transcript
+            </a>
+            <a
+              href={draftUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="block text-sm font-semibold text-indigo-700 dark:text-indigo-300 hover:underline"
+            >
+              Draft (Markdown)
+            </a>
+            <a
+              href={exportUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="block text-sm font-semibold text-indigo-700 dark:text-indigo-300 hover:underline"
+            >
+              Export (Text)
+            </a>
+          </div>
+        ) : null}
 
         {!hasSession ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
