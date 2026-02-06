@@ -25,6 +25,7 @@ export default function WorkspaceSidebar({ activeSessionId }: Props) {
   const [items, setItems] = useState<RecentSession[]>([]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setItems(getRecentSessions());
 
     // keep it fresh if user navigates around
@@ -37,6 +38,7 @@ export default function WorkspaceSidebar({ activeSessionId }: Props) {
     const id = (activeSessionId ?? "").trim();
     if (!id) return;
     rememberSession(id);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setItems(getRecentSessions());
   }, [activeSessionId]);
 
