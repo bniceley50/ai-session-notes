@@ -56,3 +56,7 @@ next-env.d.ts
 tools/*.bak-*
 
 .env*.local
+
+# local logs
+/dev.log
+
