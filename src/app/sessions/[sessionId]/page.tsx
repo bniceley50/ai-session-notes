@@ -1,5 +1,6 @@
 ﻿import Link from "next/link";
 import JobPanel from "@/components/JobPanel";
+import WorkspaceSidebar from "@/components/WorkspaceSidebar";
 import { getSessionById } from "@/lib/sessions/mock";
 import SessionDetail from "./SessionDetail";
 
@@ -31,8 +32,12 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
     };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
+    <div className="min-h-screen grid grid-cols-1 md:grid-cols-[18rem_1fr]">
+      <div className="hidden md:block">
+        <WorkspaceSidebar activeSessionId={sessionId} />
+      </div>
+      <div className="p-4">
+        <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
         <header className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-col gap-2">
@@ -62,7 +67,8 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
           </div>
           <JobPanel sessionId={sessionId} />
         </section>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
