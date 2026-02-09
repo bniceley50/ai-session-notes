@@ -1,18 +1,10 @@
-﻿import Link from "next/link";
-import JobPanel from "@/components/JobPanel";
-import { getSessionById } from "@/lib/sessions/mock";
-import SessionDetail from "./SessionDetail";
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-function parseYmdToLocalDate(ymd: string) {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
+import Link from "next/link";
+import { SessionJobProvider } from "@/components/session/SessionJobContext";
+import { AudioInput } from "@/components/session/AudioInput";
+import { TranscriptViewer } from "@/components/session/TranscriptViewer";
+import { AIAnalysisViewer } from "@/components/session/AIAnalysisViewer";
+import { NoteEditor } from "@/components/session/NoteEditor";
+import { SessionHistoryStrip } from "@/components/session/SessionHistoryStrip";
 
 type SessionDetailPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -20,52 +12,53 @@ type SessionDetailPageProps = {
 
 export default async function SessionDetailPage({ params }: SessionDetailPageProps) {
   const { sessionId } = await params;
-  const session =
-    getSessionById(sessionId) ?? {
-      id: sessionId,
-      patientName: "Unknown",
-      date: new Date().toISOString().slice(0, 10),
-      summary: "Session details not yet available.",
-      transcript: "",
-      note: "",
-    };
+  const decodedSessionId = decodeURIComponent(sessionId);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
-        <header className="flex flex-col gap-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-col gap-2">
-              <Link
-                href="/"
-                className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 hover:text-slate-700"
-              >
-                Back to sessions
-              </Link>
-              <h1 className="text-3xl font-semibold text-slate-900 sm:text-4xl">
-                {session.patientName}
-              </h1>
-              <p className="text-sm text-slate-600">
-                {dateFormatter.format(parseYmdToLocalDate(session.date))}{" \u2022 "}{session.summary}
-              </p>
-            </div>
-            <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-              Session detail
-            </div>
-          </div>
-        </header>
+    <div className="flex-1 flex flex-col h-full min-h-0 gap-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 flex-none">
+        <div>
+          <Link
+            href="/"
+            className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+          >
+            &larr; Back to sessions
+          </Link>
+          <h1 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
+            Session Workspace
+          </h1>
+          <p className="mt-1 text-xs font-mono text-slate-500">ID: {decodedSessionId}</p>
+        </div>
+      </div>
 
-        <SessionDetail session={session} />
-        <section className="rounded-2xl border border-slate-200 bg-white p-6">
-          <div className="mb-4 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-            Job pipeline
+      {/* WORKSPACE — Takes ~75-80% of height */}
+      <SessionJobProvider sessionId={decodedSessionId}>
+        <div className="flex-[3] grid grid-cols-1 lg:grid-cols-3 grid-rows-[1fr_auto] gap-4 min-h-0">
+          {/* Row 1: Audio Input | Transcript | AI Analysis — Three equal-height panels */}
+          <div className="min-h-0 lg:row-span-1">
+            <AudioInput sessionId={decodedSessionId} />
           </div>
-          <JobPanel sessionId={sessionId} />
-        </section>
-      </main>
+
+          <div className="min-h-0 lg:row-span-1">
+            <TranscriptViewer sessionId={decodedSessionId} />
+          </div>
+
+          <div className="min-h-0 lg:row-span-1">
+            <AIAnalysisViewer sessionId={decodedSessionId} />
+          </div>
+
+          {/* Row 2: Structured Notes — Full-width panel spanning all 3 columns */}
+          <div className="lg:col-span-3 min-h-0">
+            <NoteEditor sessionId={decodedSessionId} />
+          </div>
+        </div>
+      </SessionJobProvider>
+
+      {/* SESSION HISTORY STRIP — Takes ~20-25% of height */}
+      <div className="flex-[1] min-h-0">
+        <SessionHistoryStrip currentSessionId={decodedSessionId} />
+      </div>
     </div>
   );
 }
-
-
-

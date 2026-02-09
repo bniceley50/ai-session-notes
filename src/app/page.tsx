@@ -1,5 +1,6 @@
 import Link from "next/link";
 import JobPanel from "@/components/JobPanel";
+import WorkspaceSidebar from "@/components/WorkspaceSidebar";
 import { sessions } from "@/lib/sessions/mock";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -15,7 +16,10 @@ function parseYmdToLocalDate(ymd: string) {
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-slate-50 text-slate-900 grid grid-cols-1 md:grid-cols-[18rem_1fr]">
+      <div className="hidden md:block">
+        <WorkspaceSidebar />
+      </div>
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-12">
         <header className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
