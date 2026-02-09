@@ -60,6 +60,11 @@ export function AIAnalysisViewer({ sessionId }: Props) {
   const [loading, setLoading] = useState(false);
   const [focus, setFocus] = useState("Risk Assessment");
 
+  // Reset content when job changes (prevents stale content from previous job)
+  useEffect(() => {
+    setDraft("");
+  }, [jobId]);
+
   useEffect(() => {
     if (!jobId || !job) return;
     // Draft is available after draft stage completes (progress >= 80)

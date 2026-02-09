@@ -50,6 +50,11 @@ export function TranscriptViewer({ sessionId }: Props) {
   const [transcript, setTranscript] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
+  // Reset content when job changes (prevents stale content from previous job)
+  useEffect(() => {
+    setTranscript("");
+  }, [jobId]);
+
   useEffect(() => {
     if (!jobId || !job) return;
     // Transcript is available after transcribe stage completes (progress >= 40)
