@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
-type JobStatus = "queued" | "uploaded" | "transcribed" | "drafted" | "exported" | "complete" | "failed";
+type JobStatus = "queued" | "uploaded" | "transcribed" | "drafted" | "exported" | "complete" | "failed" | "deleted";
 
 type JobRecord = {
   jobId: string;
@@ -53,7 +53,7 @@ export function SessionJobProvider({ sessionId, children }: Props) {
       setJob(data);
 
       // Stop polling when job reaches terminal state
-      if (data.status === "complete" || data.status === "failed") {
+      if (data.status === "complete" || data.status === "failed" || data.status === "deleted") {
         stopPolling();
       }
     } catch {
