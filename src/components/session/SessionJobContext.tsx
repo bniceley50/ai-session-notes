@@ -1,16 +1,9 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import type { JobStatusFile } from "@/lib/jobs/status";
 
-type JobStatus = "queued" | "uploaded" | "transcribed" | "drafted" | "exported" | "complete" | "failed" | "deleted";
-
-type JobRecord = {
-  jobId: string;
-  sessionId: string;
-  status: JobStatus;
-  progress: number;
-  updatedAt: string;
-};
+type JobRecord = JobStatusFile;
 
 type SessionJobContextValue = {
   jobId: string | null;

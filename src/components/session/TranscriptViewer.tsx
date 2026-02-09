@@ -52,7 +52,8 @@ export function TranscriptViewer({ sessionId }: Props) {
 
   useEffect(() => {
     if (!jobId || !job) return;
-    if (job.status !== "transcribed" && job.status !== "drafted" && job.status !== "exported" && job.status !== "complete") {
+    // Transcript is available after transcribe stage completes (progress >= 40)
+    if (job.status !== "complete" && job.progress < 40) {
       return;
     }
 
@@ -76,7 +77,7 @@ export function TranscriptViewer({ sessionId }: Props) {
     void fetchTranscript();
   }, [jobId, job]);
 
-  const isReady = job && (job.status === "transcribed" || job.status === "drafted" || job.status === "exported" || job.status === "complete");
+  const isReady = job && (job.status === "complete" || job.progress >= 40);
   const content = isReady ? transcript : "Waiting for transcription...";
 
   return (

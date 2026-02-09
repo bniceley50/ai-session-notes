@@ -62,7 +62,8 @@ export function AIAnalysisViewer({ sessionId }: Props) {
 
   useEffect(() => {
     if (!jobId || !job) return;
-    if (job.status !== "drafted" && job.status !== "exported" && job.status !== "complete") {
+    // Draft is available after draft stage completes (progress >= 80)
+    if (job.status !== "complete" && job.progress < 80) {
       return;
     }
 
@@ -86,7 +87,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
     void fetchDraft();
   }, [jobId, job]);
 
-  const isReady = job && (job.status === "drafted" || job.status === "exported" || job.status === "complete");
+  const isReady = job && (job.status === "complete" || job.progress >= 80);
   const content = isReady ? draft : "Waiting for AI analysis...";
 
   return (
