@@ -60,3 +60,12 @@ tools/*.bak-*
 # local logs
 /dev.log
 
+
+# temp test artifacts (cookie jars, dummy files)
+.tmp/
+
+# claude code
+.claude/
+
+# local one-off tools
+tools/snapshot_review.bat
