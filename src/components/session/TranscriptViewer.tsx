@@ -56,6 +56,8 @@ export function TranscriptViewer({ sessionId }: Props) {
     if (job.status !== "complete" && job.progress < 40) {
       return;
     }
+    // Only fetch once when threshold is reached
+    if (transcript !== "") return;
 
     const fetchTranscript = async () => {
       setLoading(true);
@@ -75,7 +77,7 @@ export function TranscriptViewer({ sessionId }: Props) {
     };
 
     void fetchTranscript();
-  }, [jobId, job]);
+  }, [jobId, job, transcript]);
 
   const isReady = job && (job.status === "complete" || job.progress >= 40);
   const content = isReady ? transcript : "Waiting for transcription...";

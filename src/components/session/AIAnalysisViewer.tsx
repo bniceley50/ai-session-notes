@@ -66,6 +66,8 @@ export function AIAnalysisViewer({ sessionId }: Props) {
     if (job.status !== "complete" && job.progress < 80) {
       return;
     }
+    // Only fetch once when threshold is reached
+    if (draft !== "") return;
 
     const fetchDraft = async () => {
       setLoading(true);
@@ -85,7 +87,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
     };
 
     void fetchDraft();
-  }, [jobId, job]);
+  }, [jobId, job, draft]);
 
   const isReady = job && (job.status === "complete" || job.progress >= 80);
   const content = isReady ? draft : "Waiting for AI analysis...";
