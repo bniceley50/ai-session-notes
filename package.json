@@ -8,15 +8,18 @@
         "start": "next start",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
-        "test": "tsx --test --import ./tests/setup-env.ts",
+        "test": "tsx --test --import ./tests/setup-env.ts \"src/**/*.test.ts\"",
         "test:jobs": "tsx --test --import ./tests/setup-env.ts src/lib/jobs/*.test.ts",
         "test:watch": "tsx --test --watch --import ./tests/setup-env.ts"
     },
     "dependencies": {
+        "@anthropic-ai/sdk": "^0.74.0",
         "@heroicons/react": "^2.2.0",
         "@supabase/supabase-js": "^2.91.0",
         "jose": "^6.1.3",
+        "jspdf": "^4.1.0",
         "next": "16.1.6",
+        "openai": "^6.18.0",
         "react": "19.2.3",
         "react-dom": "19.2.3"
     },
