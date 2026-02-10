@@ -69,3 +69,9 @@ tools/*.bak-*
 
 # local one-off tools
 tools/snapshot_review.bat
+
+# local audio fixtures / recordings
+conversation-sample.mp3
+conversation-test.webm
+test-audio.webm
+.local/
