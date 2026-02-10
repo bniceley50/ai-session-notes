@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-process.env.NODE_ENV ??= "test";
+(process.env as Record<string, string | undefined>).NODE_ENV ??= "test";
 
 // Stub "server-only" — the real package throws unconditionally outside Next.js.
 // We create a no-op module in node_modules so CJS require() resolves it.
