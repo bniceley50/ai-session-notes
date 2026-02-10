@@ -103,7 +103,7 @@ describe("POST /api/sessions/[sessionId]/audio", () => {
     assert.ok(data.filename.endsWith(".webm"), "filename must end with .webm");
   });
 
-  test("audio/mpeg → 415 (only webm accepted)", async () => {
+  test("audio/mpeg upload succeeds (Whisper-compatible)", async () => {
     const sessionId = "sess-audio-mp3";
     await writeSessionOwnership(sessionId, "user-alice");
 
@@ -113,10 +113,13 @@ describe("POST /api/sessions/[sessionId]/audio", () => {
       filename: "recording.mp3",
     });
     const res = await POST(request, context);
-    assert.equal(res.status, 415);
+    assert.equal(res.status, 200, `Expected 200, got ${res.status}: ${await res.clone().text()}`);
+
+    const data = (await res.json()) as { mime: string };
+    assert.equal(data.mime, "audio/mpeg");
   });
 
-  test("application/octet-stream → 415 (only webm accepted)", async () => {
+  test("application/octet-stream upload succeeds (generic fallback)", async () => {
     const sessionId = "sess-audio-bin";
     await writeSessionOwnership(sessionId, "user-alice");
 
@@ -124,6 +127,19 @@ describe("POST /api/sessions/[sessionId]/audio", () => {
       sessionId,
       contentType: "application/octet-stream",
       filename: "recording.webm",
+    });
+    const res = await POST(request, context);
+    assert.equal(res.status, 200, `Expected 200, got ${res.status}: ${await res.clone().text()}`);
+  });
+
+  test("video/mp4 → 415 (not in allowlist)", async () => {
+    const sessionId = "sess-audio-vid";
+    await writeSessionOwnership(sessionId, "user-alice");
+
+    const { request, context } = await buildUploadRequest({
+      sessionId,
+      contentType: "video/mp4",
+      filename: "recording.mp4",
     });
     const res = await POST(request, context);
     assert.equal(res.status, 415);
