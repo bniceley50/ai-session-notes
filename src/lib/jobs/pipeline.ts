@@ -3,11 +3,14 @@ import path from "node:path";
 import { readAudioMetadata } from "@/lib/jobs/audio";
 import { type JobStage, readJobStatusById, updateJobStatus } from "@/lib/jobs/status";
 import {
+  getJobDir,
   getJobDraftPath,
   getJobExportPath,
   getJobLogPath,
   getJobTranscriptPath,
 } from "@/lib/jobs/status";
+import { transcribeAudio } from "@/lib/jobs/whisper";
+import { generateSOAPNote } from "@/lib/jobs/claude";
 
 export type PipelineInput = {
   sessionId: string;
@@ -33,6 +36,54 @@ const shouldStop = async (jobId: string): Promise<boolean> => {
   return status.status === "deleted";
 };
 
+/**
+ * Try to claim a job by creating a lock file
+ * Returns true if claim succeeded (this process owns the job)
+ * Returns false if job is already claimed by another process
+ *
+ * This prevents double-execution regardless of who starts the pipeline
+ * (create route's setTimeout OR runner's processQueuedJobs)
+ */
+async function tryClaimJob(sessionId: string, jobId: string): Promise<boolean> {
+  const lockPath = path.join(getJobDir(sessionId, jobId), "runner.lock");
+
+  try {
+    // Create directory if it doesn't exist
+    await fs.mkdir(path.dirname(lockPath), { recursive: true });
+
+    // Try to create lock file exclusively (wx flag = create only if doesn't exist)
+    // This is atomic - only one process will succeed
+    await fs.writeFile(
+      lockPath,
+      JSON.stringify({
+        claimedAt: new Date().toISOString(),
+        pid: process.pid,
+      }),
+      { flag: "wx" }
+    );
+
+    return true;
+  } catch (error) {
+    // Lock file already exists - another process claimed this job
+    if ((error as { code?: string })?.code === "EEXIST") {
+      return false;
+    }
+
+    // Other error (permissions, disk full, etc.)
+    throw error;
+  }
+}
+
+const isRealApisEnabled = (): boolean => {
+  const flag = process.env.AI_ENABLE_REAL_APIS;
+  return flag === "1" || flag === "true";
+};
+
+const isStubModeEnabled = (): boolean => {
+  const flag = process.env.AI_ENABLE_STUB_APIS;
+  return flag === "1" || flag === "true";
+};
+
 export const runJobPipeline = async ({
   sessionId,
   jobId,
@@ -44,8 +95,42 @@ export const runJobPipeline = async ({
   let progress = 0;
 
   try {
+    // CRITICAL: Claim the job atomically before doing any work
+    // This prevents double-execution from both setTimeout (create route) and runner
+    const claimed = await tryClaimJob(sessionId, jobId);
+    if (!claimed) {
+      // Another process already claimed this job - exit silently
+      return;
+    }
+
     if (await shouldStop(jobId)) return;
     await appendLog(sessionId, jobId, "pipeline start");
+
+    // Kill switch: require explicit opt-in to real APIs
+    if (!isRealApisEnabled() && !isStubModeEnabled()) {
+      throw new Error(
+        "Real AI APIs are disabled. Set AI_ENABLE_REAL_APIS=1 in your environment to enable Whisper and Claude. " +
+        "For UI testing without API calls, set AI_ENABLE_STUB_APIS=1."
+      );
+    }
+
+    if (isStubModeEnabled() && !isRealApisEnabled()) {
+      await appendLog(sessionId, jobId, "STUB MODE: Using demo content (AI_ENABLE_STUB_APIS=1)");
+      // Write stub content for UI testing
+      const stubTranscript = `STUB Transcript (Demo Mode)\n\nThis is demo content generated because AI_ENABLE_STUB_APIS=1.\nTo use real Whisper API, set AI_ENABLE_REAL_APIS=1.\n\n[Demo conversation would go here]`;
+      await writeTextFile(getJobTranscriptPath(sessionId, jobId), stubTranscript);
+      progress = 40;
+      await updateJobStatus(jobId, { status: "running", stage: "transcribe", progress, errorMessage: null });
+
+      const stubDraft = `# SOAP Note (Demo Mode)\n\nThis is demo content generated because AI_ENABLE_STUB_APIS=1.\nTo use real Claude API, set AI_ENABLE_REAL_APIS=1.\n\n## Subjective\n[Demo content]\n\n## Objective\n[Demo content]\n\n## Assessment\n[Demo content]\n\n## Plan\n[Demo content]`;
+      await writeTextFile(getJobDraftPath(sessionId, jobId), stubDraft);
+      progress = 80;
+      await updateJobStatus(jobId, { status: "running", stage: "draft", progress, errorMessage: null });
+
+      await updateJobStatus(jobId, { status: "complete", stage: "export", progress: 100, errorMessage: null });
+      await appendLog(sessionId, jobId, "pipeline complete (stub mode)");
+      return;
+    }
 
     const audio = await readAudioMetadata(sessionId, artifactId);
     const audioSummary = audio
@@ -55,9 +140,15 @@ export const runJobPipeline = async ({
     stage = "transcribe";
     progress = 10;
     await updateJobStatus(jobId, { status: "running", stage, progress, errorMessage: null });
+    await appendLog(sessionId, jobId, `transcribing: ${audioSummary}`);
 
-    const transcriptText = `Transcript (placeholder)\n\nSource: ${audioSummary}\nGeneratedAt: ${new Date().toISOString()}\n`;
+    // Call Whisper API for real transcription
+    const transcription = await transcribeAudio(sessionId, artifactId);
+    const transcriptText = `Transcript\n\nSource: ${audioSummary}\nDuration: ${transcription.duration ? `${Math.round(transcription.duration)}s` : "unknown"}\nTranscribed: ${new Date().toISOString()}\n\n---\n\n${transcription.text}\n`;
+
     await writeTextFile(getJobTranscriptPath(sessionId, jobId), transcriptText);
+    await appendLog(sessionId, jobId, `transcription complete: ${transcription.text.length} chars`);
+
     progress = 40;
     await updateJobStatus(jobId, { status: "running", stage, progress, errorMessage: null });
 
@@ -65,9 +156,15 @@ export const runJobPipeline = async ({
     stage = "draft";
     progress = 60;
     await updateJobStatus(jobId, { status: "running", stage, progress, errorMessage: null });
+    await appendLog(sessionId, jobId, `generating SOAP note from transcript`);
 
-    const draftText = `# SOAP Note (Draft)\n\n## Subjective\nPatient encounter recorded.\n\n## Objective\nNo vitals captured.\n\n## Assessment\nNeeds clinician review.\n\n## Plan\nFollow up as indicated.\n\n---\nGeneratedAt: ${new Date().toISOString()}\n`;
+    // Call Claude API to generate SOAP note from transcript
+    const soapNote = await generateSOAPNote(transcription.text);
+    const draftText = `# SOAP Note (Draft)\n\n${soapNote.text}\n\n---\nGeneratedAt: ${new Date().toISOString()}\nTokens: ${soapNote.tokens ?? "unknown"}\n`;
+
     await writeTextFile(getJobDraftPath(sessionId, jobId), draftText);
+    await appendLog(sessionId, jobId, `SOAP note generated: ${soapNote.tokens ?? 0} tokens`);
+
     progress = 80;
     await updateJobStatus(jobId, { status: "running", stage, progress, errorMessage: null });
 
