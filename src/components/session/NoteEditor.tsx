@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { jsPDF } from "jspdf";
 
 type Props = { sessionId: string };
 type NoteType = "soap" | "dap" | "birp" | "freeform";
@@ -12,30 +13,11 @@ const NOTE_TYPES: { value: NoteType; label: string }[] = [
   { value: "freeform", label: "Freeform" },
 ];
 
-const MOCK_NOTES: Record<NoteType, string> = {
-  soap: `S: Patient states. Ivmeves. Suicidal ideation denied mr mt passive wish for sleep noted.
-
-O: Affect is restricted. Affect br restricted providrz d-enozened until onnosings: affect is restricted.
-
-A: Symptoms consistent with, symptoms consistent with, and necetsary symmons consistent.
-
-P: Continue current medication and continue awast medication in moingarv ureatment.`,
-  dap: `D: Patient reports increased anxiety related to housing instability.
-
-A: Anxiety symptoms consistent with GAD. Risk assessment negative for SI.
-
-P: Continue CBT, review coping strategies next session.`,
-  birp: `B: Patient engaged in session, discussed housing concerns.
-
-I: CBT techniques applied, cognitive restructuring of worry patterns.
-
-R: Patient demonstrated understanding of thought-behavior connection.
-
-P: Practice thought records daily, follow up in 2 weeks.`,
-  freeform: "Draft session note goes here. Highlight key findings and next steps.",
-};
-
-function DropdownButton({ label, options }: { label: string; options: string[] }) {
+function DropdownButton({ label, options, onChange }: {
+  label: string;
+  options: string[];
+  onChange?: (v: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -65,7 +47,7 @@ function DropdownButton({ label, options }: { label: string; options: string[] }
             <button
               key={opt}
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => { onChange?.(opt); setOpen(false); }}
               className="block w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               {opt}
@@ -79,7 +61,182 @@ function DropdownButton({ label, options }: { label: string; options: string[] }
 
 export function NoteEditor({ sessionId }: Props) {
   const [noteType, setNoteType] = useState<NoteType>("soap");
-  const [note, setNote] = useState<string>(MOCK_NOTES.soap);
+  const [note, setNote] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+  const saveTimerRef = useRef<number | null>(null);
+
+  // Fetch note when component mounts or noteType changes
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchNote() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch(
+          `/api/sessions/${encodeURIComponent(sessionId)}/notes?type=${noteType}`,
+          { credentials: "include" }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to load note");
+        }
+
+        const data = await response.json();
+        if (!cancelled) {
+          setNote(data.content || "");
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError("Failed to load note");
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchNote();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, noteType]);
+
+  // Debounced autosave when note changes
+  useEffect(() => {
+    if (loading) return; // Don't save while initial load is happening
+
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = window.setTimeout(() => {
+      async function saveNote() {
+        setSaving(true);
+        try {
+          const response = await fetch(
+            `/api/sessions/${encodeURIComponent(sessionId)}/notes`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ type: noteType, content: note }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error("Failed to save note");
+          }
+        } catch (err) {
+          setError("Failed to save note");
+        } finally {
+          setSaving(false);
+        }
+      }
+
+      saveNote();
+    }, 400);
+
+    return () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [note, noteType, sessionId, loading]);
+
+  const handleSaveDraft = () => {
+    // Manual save is now handled by autosave, show confirmation
+    alert("Note is auto-saved as you type!");
+  };
+
+  const handleRegenerate = () => {
+    // TODO: Implement regeneration from AI
+    alert("Regenerate note from AI (Feature coming soon)");
+  };
+
+  const handleClear = async () => {
+    if (!confirm("Are you sure you want to clear this note?")) {
+      return;
+    }
+
+    try {
+      // Clear locally first for immediate feedback
+      setNote("");
+
+      // The autosave will handle persisting the empty content
+    } catch (err) {
+      setError("Failed to clear note");
+    }
+  };
+
+  const handleExport = (option: string) => {
+    if (!note || note.trim() === "") {
+      alert("No content available to export yet.");
+      return;
+    }
+
+    switch (option) {
+      case "Copy to Clipboard":
+        navigator.clipboard.writeText(note)
+          .then(() => alert("Copied to clipboard!"))
+          .catch(() => alert("Failed to copy to clipboard."));
+        break;
+
+      case "Download .txt": {
+        const blob = new Blob([note], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${noteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        break;
+      }
+
+      case "Download .docx":
+        alert("Word document export coming soon!");
+        break;
+
+      case "Download .pdf": {
+        try {
+          const doc = new jsPDF();
+          const pageWidth = doc.internal.pageSize.getWidth();
+          const pageHeight = doc.internal.pageSize.getHeight();
+          const margins = 20;
+          const maxWidth = pageWidth - margins * 2;
+          const lineHeight = 6;
+          let currentY = margins;
+
+          // Split text into lines that fit the page width
+          const lines = doc.splitTextToSize(note, maxWidth);
+
+          doc.setFontSize(10);
+
+          // Add lines with pagination
+          for (let i = 0; i < lines.length; i++) {
+            // Check if we need a new page
+            if (currentY + lineHeight > pageHeight - margins) {
+              doc.addPage();
+              currentY = margins;
+            }
+
+            doc.text(lines[i], margins, currentY);
+            currentY += lineHeight;
+          }
+
+          doc.save(`${noteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.pdf`);
+        } catch (error) {
+          alert("Failed to generate PDF.");
+        }
+        break;
+      }
+    }
+  };
 
   return (
     <section className="card-base h-full flex flex-col gap-4 col-span-3">
@@ -95,7 +252,6 @@ export function NoteEditor({ sessionId }: Props) {
               onChange={(e) => {
                 const newType = e.target.value as NoteType;
                 setNoteType(newType);
-                setNote(MOCK_NOTES[newType]);
               }}
             >
               {NOTE_TYPES.map((t) => (
@@ -111,6 +267,7 @@ export function NoteEditor({ sessionId }: Props) {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={handleSaveDraft}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -120,6 +277,7 @@ export function NoteEditor({ sessionId }: Props) {
           </button>
           <button
             type="button"
+            onClick={handleRegenerate}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -129,6 +287,7 @@ export function NoteEditor({ sessionId }: Props) {
           </button>
           <button
             type="button"
+            onClick={handleClear}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -136,13 +295,35 @@ export function NoteEditor({ sessionId }: Props) {
             </svg>
             Clear
           </button>
-          <DropdownButton label="Copy/Export" options={["Copy to Clipboard", "Download .txt", "Download .docx", "Download .pdf"]} />
+          <DropdownButton label="Copy/Export" options={["Copy to Clipboard", "Download .txt", "Download .docx", "Download .pdf"]} onChange={handleExport} />
         </div>
       </header>
 
       {/* Note content */}
-      <div className="flex-1 min-h-0 overflow-y-auto rounded-lg bg-slate-50 dark:bg-slate-900 p-4 text-sm leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-line">
-        {note}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {loading && (
+          <div className="flex items-center justify-center p-8 text-sm text-slate-500">
+            Loading note...
+          </div>
+        )}
+        {error && (
+          <div className="mb-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-3 py-2 text-sm text-red-700 dark:text-red-400">
+            {error}
+          </div>
+        )}
+        {!loading && (
+          <>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Start typing your note here..."
+              className="flex-1 min-h-0 resize-none rounded-lg bg-slate-50 dark:bg-slate-900 p-4 text-sm leading-relaxed text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 focus:border-red-500 focus:outline-none"
+            />
+            {saving && (
+              <p className="mt-2 text-xs text-slate-500">Saving...</p>
+            )}
+          </>
+        )}
       </div>
     </section>
   );

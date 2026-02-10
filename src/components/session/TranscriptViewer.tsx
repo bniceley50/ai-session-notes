@@ -5,7 +5,11 @@ import { useSessionJob } from "./SessionJobContext";
 
 type Props = { sessionId: string };
 
-function DropdownButton({ label, options }: { label: string; options: string[] }) {
+function DropdownButton({ label, options, onChange }: {
+  label: string;
+  options: string[];
+  onChange?: (v: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -33,7 +37,7 @@ function DropdownButton({ label, options }: { label: string; options: string[] }
             <button
               key={opt}
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => { onChange?.(opt); setOpen(false); }}
               className="block w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               {opt}
@@ -87,11 +91,43 @@ export function TranscriptViewer({ sessionId }: Props) {
   const isReady = job && (job.status === "complete" || job.progress >= 40);
   const content = isReady ? transcript : "Waiting for transcription...";
 
+  const handleExport = (option: string) => {
+    if (!transcript || transcript === "") {
+      alert("No transcript available to export yet.");
+      return;
+    }
+
+    switch (option) {
+      case "Copy Text":
+        navigator.clipboard.writeText(transcript)
+          .then(() => alert("Copied to clipboard!"))
+          .catch(() => alert("Failed to copy to clipboard."));
+        break;
+
+      case "Download .txt": {
+        const blob = new Blob([transcript], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `transcript-${sessionId}-${new Date().toISOString().split("T")[0]}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        break;
+      }
+
+      case "Download .docx":
+        alert("Word document export coming soon!");
+        break;
+    }
+  };
+
   return (
     <section className="card-base h-full flex flex-col gap-3 min-h-[260px]">
       <header className="flex items-center justify-between">
         <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Transcript</h3>
-        <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .docx"]} />
+        <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .docx"]} onChange={handleExport} />
       </header>
       <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
         {loading ? (

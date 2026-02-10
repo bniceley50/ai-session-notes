@@ -1,5 +1,4 @@
 import Link from "next/link";
-import JobPanel from "@/components/JobPanel";
 import WorkspaceSidebar from "@/components/WorkspaceSidebar";
 import { sessions } from "@/lib/sessions/mock";
 
@@ -31,19 +30,22 @@ export default function Home() {
                 Sessions
               </h1>
             </div>
-            <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-              MVP
+            <div className="flex items-center gap-3">
+              <Link
+                href="/sessions/new"
+                className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white transition shadow-sm"
+              >
+                + New Session
+              </Link>
+              <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                MVP
+              </div>
             </div>
           </div>
           <p className="max-w-2xl text-base text-slate-600">
-            Review recent sessions, open a transcript, and refine the draft
-            note before copying or exporting.
+            Click on a session below to record audio, view the transcript, and generate notes.
           </p>
         </header>
-
-        <div className="grid gap-4">
-          <JobPanel />
-        </div>
 
         <section className="grid gap-4">
           {sessions.map((session) => (
