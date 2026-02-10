@@ -8,9 +8,9 @@
         "start": "next start",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
-        "test": "node --test --experimental-strip-types",
-        "test:jobs": "node --test --experimental-strip-types src/lib/jobs/*.test.ts",
-        "test:watch": "node --test --watch --experimental-strip-types"
+        "test": "tsx --test --import ./tests/setup-env.ts",
+        "test:jobs": "tsx --test --import ./tests/setup-env.ts src/lib/jobs/*.test.ts",
+        "test:watch": "tsx --test --watch --import ./tests/setup-env.ts"
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",
@@ -29,6 +29,7 @@
         "eslint": "^9",
         "eslint-config-next": "16.1.2",
         "tailwindcss": "^4",
+        "tsx": "^4.21.0",
         "typescript": "^5"
     }
 }

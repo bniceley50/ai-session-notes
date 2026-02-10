@@ -1,6 +1,6 @@
 import path from "node:path";
 
-export const ARTIFACTS_ROOT = ".artifacts";
+export const ARTIFACTS_ROOT = process.env.ARTIFACTS_ROOT || ".artifacts";
 
 const PATH_SEGMENT_PATTERN = /^[A-Za-z0-9_-]+$/;
 const WINDOWS_ILLEGAL_PATTERN = /[<>:"/\\|?*\u0000-\u001f]/g;
