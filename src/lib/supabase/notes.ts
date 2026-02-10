@@ -62,6 +62,46 @@ export async function loadNote(
 }
 
 /**
+ * Ensure the org and session rows exist in Supabase before inserting a note.
+ *
+ * The notes table has FK constraints:
+ *   notes.org_id      → orgs.id
+ *   (session_id, org_id) → sessions(id, org_id)
+ *
+ * During the MVP flow the session row may not yet exist in Supabase when the
+ * NoteEditor autosave fires (it can race ahead of the audio-upload endpoint
+ * that normally creates the session row). This helper does idempotent upserts
+ * so the FK is always satisfied.
+ */
+async function ensureOrgAndSession(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  sessionId: string,
+  orgId: string
+): Promise<void> {
+  // 1. Ensure org exists (idempotent)
+  await supabase
+    .from("orgs")
+    .upsert({ id: orgId, name: "Default Org" }, { onConflict: "id" })
+    .select()
+    .single();
+
+  // 2. Ensure session exists (idempotent)
+  await supabase
+    .from("sessions")
+    .upsert(
+      {
+        id: sessionId,
+        org_id: orgId,
+        label: "New Session",
+        status: "active",
+      },
+      { onConflict: "id" }
+    )
+    .select()
+    .single();
+}
+
+/**
  * Save (upsert) a note for a session + note type
  * Last-write-wins semantics (no conflict resolution)
  *
@@ -84,6 +124,10 @@ export async function saveNote(
   }
 
   const supabase = createSupabaseAdminClient(supabaseUrl, serviceRoleKey);
+
+  // Ensure org + session rows exist so FK constraints are satisfied.
+  // This is a no-op when rows already exist (upsert with onConflict).
+  await ensureOrgAndSession(supabase, sessionId, orgId);
 
   // Step 1: Check if note exists for this org + session + type
   const { data: existing } = await supabase
