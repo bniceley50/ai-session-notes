@@ -55,7 +55,7 @@ export function JobStatusChip({ status, stage }: Props) {
   return (
     <span
       data-testid="job-status-chip"
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${style.bg} ${style.text}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${style.bg} ${style.text}`}
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${style.dot}${status === "running" ? " animate-pulse" : ""}`}
