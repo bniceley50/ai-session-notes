@@ -25,6 +25,8 @@ type SessionJobContextValue = {
   stopPolling: () => void;
   /** Cancel the current transcription job (DELETE + reset state) */
   cancelJob: () => Promise<void>;
+  /** Delete a completed/failed job (DELETE + reset state) */
+  deleteJob: () => Promise<void>;
   clearJobNotice: () => void;
   /** Register a callback from NoteEditor to receive transferred content */
   onTransferToNotes: (cb: TransferToNotesCallback) => void;
@@ -113,29 +115,36 @@ export function SessionJobProvider({ sessionId, children }: Props) {
     };
   }, []);
 
-  const cancelJob = useCallback(async () => {
+  /** Shared reset: stop polling, clear state, DELETE on server, show notice */
+  const resetJob = useCallback(async (successMsg: string, errorMsg: string) => {
     const currentJobId = jobId;
-    // Stop polling and reset UI state immediately
     stopPolling();
     setJobId(null);
     setJob(null);
     setAudioArtifactId(null);
 
-    // Tell the server to mark the job as deleted (pipeline checks shouldStop)
     if (currentJobId) {
       try {
         await fetch(`/api/jobs/${currentJobId}`, {
           method: "DELETE",
           credentials: "include",
         });
-        showNotice({ type: "cancelled", message: "Job cancelled." });
+        showNotice({ type: "cancelled", message: successMsg });
       } catch {
-        showNotice({ type: "error", message: "Could not cancel job." });
+        showNotice({ type: "error", message: errorMsg });
       }
     } else {
-      showNotice({ type: "cancelled", message: "Job cancelled." });
+      showNotice({ type: "cancelled", message: successMsg });
     }
   }, [jobId, showNotice]);
+
+  const cancelJob = useCallback(async () => {
+    await resetJob("Job cancelled.", "Could not cancel job.");
+  }, [resetJob]);
+
+  const deleteJob = useCallback(async () => {
+    await resetJob("Job deleted.", "Could not delete job.");
+  }, [resetJob]);
 
   const onTransferToNotes = useCallback((cb: TransferToNotesCallback) => {
     transferCallbackRef.current = cb;
@@ -155,6 +164,7 @@ export function SessionJobProvider({ sessionId, children }: Props) {
     startPolling,
     stopPolling,
     cancelJob,
+    deleteJob,
     clearJobNotice,
     onTransferToNotes,
     transferToNotes,
