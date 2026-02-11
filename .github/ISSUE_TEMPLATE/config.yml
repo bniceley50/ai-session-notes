@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: CI troubleshooting guide
+    url: https://github.com/bniceley50/ai-session-notes/blob/main/docs/CI-TROUBLESHOOTING.md
+    about: Check the quick-fix table before opening a CI failure issue.
+
+  - name: Testing conventions
+    url: https://github.com/bniceley50/ai-session-notes/blob/main/docs/TESTING.md
+    about: E2E selector rules, triage flow, and local repro commands.
+
+  - name: Security policy
+    url: https://github.com/bniceley50/ai-session-notes/blob/main/SECURITY.md
+    about: Report vulnerabilities privately — do not open a public issue.
