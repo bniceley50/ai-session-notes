@@ -1,62 +1,83 @@
 # AI Session Notes (MVP)
 
+[![E2E – Playwright](https://github.com/bniceley50/ai-session-notes/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/bniceley50/ai-session-notes/actions/workflows/e2e-playwright.yml)
+
 Dead-simple clinical documentation MVP:
 
-session audio → transcript → AI-drafted provider note → provider edits → copy/export
+**session audio → transcript → AI-drafted provider note → provider edits → copy/export**
 
 Goal: kill documentation time and make notes fast + consistent on normal laptops.
 
-## Product shape (intentionally minimal)
-Two screens:
-- Sessions list
-- Session detail: Transcript + Note editor + Copy/Export
+## Quick links
 
-## Architecture constraints
-- Transcription provider is swappable (Deepgram / Whisper / etc.)
-- Server-only secrets stay on the server
-- Keep the workflow reliable on normal laptops (no fancy setup required)
+| Resource | Path |
+|---|---|
+| E2E test | `tests/e2e/core-loop.spec.ts` |
+| CI workflow | `.github/workflows/e2e-playwright.yml` |
+| CI troubleshooting | `docs/CI-TROUBLESHOOTING.md` |
+| Testing guide | `docs/TESTING.md` |
+| Security notes | `SECURITY.md` |
+
+## Product shape (intentionally minimal)
+
+Two screens:
+- **Sessions list** — pick or create a session
+- **Session workspace** — Audio Input + Transcript + AI Analysis + Structured Notes
 
 ## Local dev
 
-Prereqs
-- Node.js (LTS recommended)
-- Git
+**Prereqs:** Node.js >= 22, pnpm
 
-Install
-    npm install
+```bash
+pnpm install              # install deps
+cp .env.example .env.local # configure env vars (see below)
+pnpm dev                  # start dev server at http://localhost:3000
+```
 
-Run
-    npm run dev
+**Quality gate** (run before every PR):
+```bash
+pnpm tsc --noEmit && pnpm eslint src/
+```
 
-Quality gate (typecheck + lint)
-    .\tools\gate.cmd /all
+**E2E test** (stub mode — no API spend):
+```bash
+pnpm exec playwright install --with-deps chromium   # first time only
+pnpm exec playwright test
+```
 
 ## Environment variables
 
-This app uses Supabase. You will need these environment variables set (see your .env.local):
+Copy `.env.example` to `.env.local` and fill in values. Key groups:
 
-- NEXT_PUBLIC_SUPABASE_URL
-- NEXT_PUBLIC_SUPABASE_ANON_KEY
-- SUPABASE_SERVICE_ROLE_KEY (server-only)
+| Variable | Required | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only — never expose in client code |
+| `AUTH_COOKIE_SECRET` | Yes | >= 32 chars for session JWT signing |
+| `OPENAI_API_KEY` | For real mode | Whisper transcription |
+| `ANTHROPIC_API_KEY` | For real mode | Claude note generation |
+| `AI_ENABLE_REAL_APIS` | No | Set `1` to enable real API calls |
+| `AI_ENABLE_STUB_APIS` | No | Set `1` for stub mode (no API spend) |
+| `ALLOW_DEV_LOGIN` | No | Set `1` to bypass Cognito in dev |
 
-Never expose SUPABASE_SERVICE_ROLE_KEY in client code or logs.
+## Architecture constraints
 
-## Docs
-- SECURITY.md
-- docs/TESTING.md
-
-## Notes
-- API routes that require server-only secrets should import server-only and run in the Node.js runtime.
-- Prefer RLS + least privilege; never trust the client.
+- Transcription provider is swappable (Whisper / Deepgram / etc.)
+- Server-only secrets stay on the server
+- Disposable data model — 24-hour auto-delete, not an EHR
+- API routes that require server-only secrets import `server-only` and run in the Node.js runtime
 
 ## What's working (Current MVP)
+
 - Sessions list page (`/`)
-- Session detail page (`/sessions/[sessionId]`) with Transcript + Note editor + Copy/Export
-- Notes persist locally per session (localStorage)
-- Date parsing uses local Y-M-D helper (no timezone drift)
-- Separator uses a safe JSX escape (`{" \u2022 "}`)
-- Next.js pinned to patched version (16.1.6); pnpm audit clean
+- Session workspace (`/sessions/[sessionId]`) — Audio Input, Transcript, AI Analysis, Structured Notes
+- Full pipeline: upload → transcribe (Whisper) → generate note (Claude) → export
+- Cancel/delete job with filesystem cleanup
+- E2E test covering the core loop (stub mode)
+- CI via GitHub Actions (Playwright on every PR)
 
 ## Troubleshooting
-- Dates off by one day: parse `YYYY-MM-DD` as a local date (avoid `new Date("YYYY-MM-DD")`).
-- Odd characters in separators: use JSX escapes like `{" \u2022 "}` instead of literal bullets.
+
+- Dates off by one day: parse `YYYY-MM-DD` as a local date (avoid `new Date("YYYY-MM-DD")`)
+- CI failures: see `docs/CI-TROUBLESHOOTING.md`
