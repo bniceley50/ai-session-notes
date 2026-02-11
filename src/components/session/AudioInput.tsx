@@ -3,6 +3,16 @@
 import { useRef, useState } from "react";
 import { useSessionJob } from "./SessionJobContext";
 import { ProgressBar } from "./ProgressBar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Props = { sessionId: string };
 
@@ -21,6 +31,7 @@ export function AudioInput({ sessionId }: Props) {
   const [uploadedFilename, setUploadedFilename] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -296,7 +307,7 @@ export function AudioInput({ sessionId }: Props) {
                 {(job?.status === "complete" || job?.status === "failed") && (
                   <button
                     type="button"
-                    onClick={() => { void deleteJob(); setStatus("idle"); setUploadedFilename(""); setSelectedFile(null); }}
+                    onClick={() => setConfirmDeleteOpen(true)}
                     className="px-4 py-2 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
                   >
                     Delete job
@@ -306,6 +317,30 @@ export function AudioInput({ sessionId }: Props) {
             )}
           </div>
         </div>
+        <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+          <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete job?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the current job artifacts and resets this session workspace. You can upload again anytime.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  void deleteJob();
+                  setStatus("idle");
+                  setUploadedFilename("");
+                  setSelectedFile(null);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </section>
     );
   }

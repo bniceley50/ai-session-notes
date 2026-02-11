@@ -6,7 +6,9 @@ import path from "path";
  * Delete-flow E2E test.
  *
  * Proves that deleting a completed job:
- *   - Shows a "Job deleted." notice
+ *   - Opens a confirmation dialog before deleting
+ *   - Cancelling the dialog has no side effects
+ *   - Confirming delete shows a "Job deleted." notice
  *   - Resets AudioInput so user can re-upload
  *   - Clears transcript from the page
  *
@@ -46,20 +48,41 @@ test.describe("Delete Flow", () => {
     const transcriptText = page.getByText(STUB_TRANSCRIPT_MARKER);
     await expect(transcriptText).toBeVisible({ timeout: 30_000 });
 
-    // ── 5. Wait for "Delete job" button (terminal state) ───────
+    // ── 5. Click "Delete job" → confirm dialog opens ───────────
     const deleteBtn = page.getByRole("button", { name: "Delete job" });
     await expect(deleteBtn).toBeVisible({ timeout: 10_000 });
     await deleteBtn.click();
 
-    // ── 6. Assert: "Job deleted." notice appears ───────────────
+    // Dialog should appear with title and actions
+    const dialogTitle = page.getByText("Delete job?");
+    await expect(dialogTitle).toBeVisible({ timeout: 3_000 });
+
+    // ── 6. Cancel the dialog — nothing should change ─────────
+    const cancelDialogBtn = page.getByRole("button", { name: "Cancel" });
+    await expect(cancelDialogBtn).toBeVisible();
+    await cancelDialogBtn.click();
+
+    // Dialog closed, transcript still visible, no notice
+    await expect(dialogTitle).not.toBeVisible({ timeout: 2_000 });
+    await expect(transcriptText).toBeVisible();
+
+    // ── 7. Click "Delete job" again → confirm this time ──────
+    await deleteBtn.click();
+    await expect(dialogTitle).toBeVisible({ timeout: 3_000 });
+
+    const confirmDeleteBtn = page.getByRole("button", { name: "Delete" });
+    await expect(confirmDeleteBtn).toBeVisible();
+    await confirmDeleteBtn.click();
+
+    // ── 8. Assert: "Job deleted." notice appears ───────────────
     const notice = page.getByText("Job deleted.").first();
     await expect(notice).toBeVisible({ timeout: 5_000 });
 
-    // ── 7. Assert: UI reset — upload controls are available ────
+    // ── 9. Assert: UI reset — upload controls are available ────
     const uploadArea = page.getByText("Upload audio/video file");
     await expect(uploadArea).toBeVisible({ timeout: 5_000 });
 
-    // ── 8. Assert: transcript cleared from page ────────────────
+    // ── 10. Assert: transcript cleared from page ───────────────
     const transcriptMarker = page.getByText(STUB_TRANSCRIPT_MARKER);
     await expect(transcriptMarker).not.toBeVisible({ timeout: 2_000 });
   });
