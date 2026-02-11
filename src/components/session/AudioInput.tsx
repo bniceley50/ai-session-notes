@@ -15,7 +15,7 @@ type UploadResponse = {
 
 
 export function AudioInput({ sessionId }: Props) {
-  const { audioArtifactId, setAudioArtifactId, setJobId, startPolling, job, cancelJob } = useSessionJob();
+  const { audioArtifactId, setAudioArtifactId, setJobId, startPolling, job, cancelJob, jobNotice, clearJobNotice } = useSessionJob();
   const [status, setStatus] = useState<"idle" | "uploading" | "processing" | "error">("idle");
   const [error, setError] = useState<string>("");
   const [uploadedFilename, setUploadedFilename] = useState<string>("");
@@ -82,6 +82,7 @@ export function AudioInput({ sessionId }: Props) {
 
     setStatus("uploading");
     setError("");
+    clearJobNotice();
 
     try {
       // Step 1: Upload audio
@@ -187,6 +188,7 @@ export function AudioInput({ sessionId }: Props) {
 
     setStatus("uploading");
     setError("");
+    clearJobNotice();
 
     try {
       const filename = `recording-${new Date().toISOString()}.webm`;
@@ -485,6 +487,18 @@ export function AudioInput({ sessionId }: Props) {
         </div>
       </div>
 
+      {jobNotice && (
+        <div
+          className={`flex items-center justify-center gap-2 text-xs px-3 py-1.5 rounded-lg ${
+            jobNotice.type === "cancelled"
+              ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+              : "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400"
+          }`}
+        >
+          <span>{jobNotice.message}</span>
+          <button type="button" onClick={clearJobNotice} className="ml-1 opacity-60 hover:opacity-100">&times;</button>
+        </div>
+      )}
       {error && <p className="text-sm text-red-600 text-center">{error}</p>}
     </section>
   );

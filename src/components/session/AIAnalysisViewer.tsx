@@ -38,7 +38,7 @@ const ANALYSIS_POLL_MS = 2000;
 
 export function AIAnalysisViewer({ sessionId }: Props) {
   // Transcription job from shared context (tells us when transcript is ready)
-  const { jobId: transcribeJobId, job: transcribeJob, audioArtifactId, transferToNotes, cancelJob } = useSessionJob();
+  const { jobId: transcribeJobId, job: transcribeJob, audioArtifactId, transferToNotes, cancelJob, jobNotice, clearJobNotice } = useSessionJob();
 
   // This component's own analysis job state (separate from transcription)
   const [analysisJobId, setAnalysisJobId] = useState<string | null>(null);
@@ -152,6 +152,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
     setStartError("");
     setTransferState("idle");
     setTransferError("");
+    clearJobNotice();
     try {
       const response = await fetch("/api/jobs/create", {
         method: "POST",
@@ -402,6 +403,18 @@ export function AIAnalysisViewer({ sessionId }: Props) {
           </div>
         )}
       </div>
+      {jobNotice && (
+        <div
+          className={`flex items-center justify-center gap-2 text-xs px-3 py-1.5 rounded-lg ${
+            jobNotice.type === "cancelled"
+              ? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+              : "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400"
+          }`}
+        >
+          <span>{jobNotice.message}</span>
+          <button type="button" onClick={clearJobNotice} className="ml-1 opacity-60 hover:opacity-100">&times;</button>
+        </div>
+      )}
     </section>
   );
 }
