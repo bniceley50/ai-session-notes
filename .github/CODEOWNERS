@@ -1,0 +1,26 @@
+# CODEOWNERS — auto-request reviews for key areas.
+# Specific paths first, catch-all last.
+
+# GitHub process & CI
+.github/**                      @bniceley50
+
+# Docs
+docs/**                         @bniceley50
+README.md                       @bniceley50
+SECURITY.md                     @bniceley50
+
+# Session UX + workflow-critical UI
+src/components/session/**       @bniceley50
+src/components/ui/**            @bniceley50
+
+# API + jobs pipeline
+src/app/api/**                  @bniceley50
+src/lib/jobs/**                 @bniceley50
+src/lib/auth/**                 @bniceley50
+
+# E2E + test infra
+tests/**                        @bniceley50
+playwright.config.ts            @bniceley50
+
+# Fallback
+*                               @bniceley50

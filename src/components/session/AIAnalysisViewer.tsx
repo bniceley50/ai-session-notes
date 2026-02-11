@@ -4,11 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { ArrowDown } from "lucide-react";
 import { useSessionJob } from "./SessionJobContext";
+import { JobStatusChip } from "./JobStatusChip";
+import { PanelHeader } from "./PanelHeader";
 import { ProgressBar } from "./ProgressBar";
 import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
 import { jsPDF } from "jspdf";
 import type { ClinicalNoteType } from "@/lib/jobs/claude";
+import type { JobStage, JobStatus } from "@/lib/jobs/status";
 
 type Props = { sessionId: string };
 
@@ -262,45 +265,56 @@ export function AIAnalysisViewer({ sessionId }: Props) {
 
   return (
     <section className="card-base h-full flex flex-col gap-3 min-h-[260px]">
-      <header className="flex items-center justify-between gap-2">
-        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">AI Analysis</h3>
-        <div className="flex items-center gap-2">
-          {analysisReady && draft && (
-            <>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={handleTransferToNotes}
-                disabled={transferState === "success"}
-                className={
-                  transferState === "success"
-                    ? "border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                    : "border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
-                }
-                title="Copy AI draft into Structured Notes below"
-              >
-                {transferState === "success" ? (
-                  <>
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                    Transferred!
-                  </>
-                ) : (
-                  <>
-                    <ArrowDown />
-                    Transfer to Notes
-                  </>
+      <PanelHeader
+        testId="panel-header-analysis"
+        title="AI Analysis"
+        status={
+          analysisJob ? (
+            <JobStatusChip status={analysisJob.status as JobStatus} stage={analysisJob.stage as JobStage} testId="status-chip-analysis" />
+          ) : transcribeJob ? (
+            <JobStatusChip status={transcribeJob.status} stage={transcribeJob.stage} testId="status-chip-analysis" />
+          ) : undefined
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            {analysisReady && draft && (
+              <>
+                <Button
+                  data-testid="action-transfer-notes"
+                  variant="outline"
+                  size="xs"
+                  onClick={handleTransferToNotes}
+                  disabled={transferState === "success"}
+                  className={
+                    transferState === "success"
+                      ? "border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                      : "border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                  }
+                  title="Copy AI draft into Structured Notes below"
+                >
+                  {transferState === "success" ? (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      Transferred!
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDown />
+                      Transfer to Notes
+                    </>
+                  )}
+                </Button>
+                {transferState === "error" && transferError && (
+                  <span className="text-xs text-red-600 dark:text-red-400">{transferError}</span>
                 )}
-              </Button>
-              {transferState === "error" && transferError && (
-                <span className="text-xs text-red-600 dark:text-red-400">{transferError}</span>
-              )}
-            </>
-          )}
-          <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .pdf"]} onChange={handleExport} />
-        </div>
-      </header>
+              </>
+            )}
+            <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .pdf"]} onChange={handleExport} />
+          </div>
+        }
+      />
       <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
         {loading ? (
           <p className="text-slate-500">Loading...</p>
@@ -325,7 +339,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
             </Button>
           </div>
         ) : analysisReady && draft ? (
-          <pre className="whitespace-pre-wrap font-sans">{draft}</pre>
+          <pre data-testid="analysis-draft-content" className="whitespace-pre-wrap font-sans">{draft}</pre>
         ) : analysisRunning ? (
           <div className="flex flex-col items-center justify-center h-full gap-2">
             <ProgressBar
@@ -335,6 +349,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
               indeterminate={!analysisJob || analysisJob.progress < 80}
             />
             <Button
+              data-testid="action-cancel-analysis"
               variant="ghost"
               size="xs"
               onClick={() => void cancelAnalysisJob()}
@@ -356,7 +371,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
             </p>
           </div>
         ) : transcriptReady && !analysisJobId ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4">
+          <div data-testid="analysis-ready-prompt" className="flex flex-col items-center justify-center h-full gap-4">
             <p className="text-sm text-slate-500">Transcript ready. Choose a note type and generate.</p>
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Note Type:</label>
@@ -371,6 +386,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
               </select>
             </div>
             <Button
+              data-testid="action-generate-note"
               onClick={handleGenerateNote}
               disabled={starting}
               className="bg-indigo-600 hover:bg-indigo-700 shadow-sm px-6"
@@ -389,6 +405,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
               subtitle=""
             />
             <Button
+              data-testid="action-cancel-job"
               variant="ghost"
               size="xs"
               onClick={() => void cancelJob()}

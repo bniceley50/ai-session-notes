@@ -2,8 +2,6 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { randomUUID } from "crypto";
-
 /**
  * New Session page - generates a UUID and redirects to the session detail page
  * This allows ALLOW_SESSION_AUTOCREATE to create the session on first access

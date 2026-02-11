@@ -2,7 +2,19 @@
 
 import { useRef, useState } from "react";
 import { useSessionJob } from "./SessionJobContext";
+import { JobStatusChip } from "./JobStatusChip";
+import { PanelHeader } from "./PanelHeader";
 import { ProgressBar } from "./ProgressBar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Props = { sessionId: string };
 
@@ -21,6 +33,9 @@ export function AudioInput({ sessionId }: Props) {
   const [uploadedFilename, setUploadedFilename] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -233,9 +248,11 @@ export function AudioInput({ sessionId }: Props) {
   if (audioArtifactId && uploadedFilename) {
     return (
       <section className="card-base h-full flex flex-col gap-4 min-h-[260px]">
-        <header>
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Audio Input</h3>
-        </header>
+        <PanelHeader
+          testId="panel-header-audio"
+          title="Audio Input"
+          status={job ? <JobStatusChip status={job.status} stage={job.stage} testId="status-chip-audio" /> : undefined}
+        />
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="text-center">
             {job?.status === "failed" ? (
@@ -262,10 +279,23 @@ export function AudioInput({ sessionId }: Props) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => { void cancelJob(); setStatus("idle"); setUploadedFilename(""); setSelectedFile(null); }}
-                  className="text-xs text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition"
+                  data-testid="action-cancel-job"
+                  disabled={isCancelling}
+                  onClick={async () => {
+                    if (isCancelling) return;
+                    setIsCancelling(true);
+                    try {
+                      await cancelJob();
+                      setStatus("idle");
+                      setUploadedFilename("");
+                      setSelectedFile(null);
+                    } finally {
+                      setIsCancelling(false);
+                    }
+                  }}
+                  className="text-xs text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition disabled:opacity-50"
                 >
-                  Cancel
+                  {isCancelling ? "Cancelling…" : "Cancel"}
                 </button>
               </>
             ) : (
@@ -296,8 +326,10 @@ export function AudioInput({ sessionId }: Props) {
                 {(job?.status === "complete" || job?.status === "failed") && (
                   <button
                     type="button"
-                    onClick={() => { void deleteJob(); setStatus("idle"); setUploadedFilename(""); setSelectedFile(null); }}
-                    className="px-4 py-2 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                    data-testid="action-open-delete-dialog"
+                    disabled={isDeleting}
+                    onClick={() => setConfirmDeleteOpen(true)}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50"
                   >
                     Delete job
                   </button>
@@ -306,6 +338,38 @@ export function AudioInput({ sessionId }: Props) {
             )}
           </div>
         </div>
+        <AlertDialog open={confirmDeleteOpen} onOpenChange={(open) => { if (!isDeleting) setConfirmDeleteOpen(open); }}>
+          <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete job?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the current job artifacts and resets this session workspace. You can upload again anytime.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="action-cancel-delete-dialog" disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                data-testid="action-confirm-delete-job"
+                variant="destructive"
+                disabled={isDeleting}
+                onClick={async () => {
+                  if (isDeleting) return;
+                  setIsDeleting(true);
+                  try {
+                    await deleteJob();
+                    setStatus("idle");
+                    setUploadedFilename("");
+                    setSelectedFile(null);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+              >
+                {isDeleting ? "Deleting…" : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </section>
     );
   }
@@ -476,6 +540,7 @@ export function AudioInput({ sessionId }: Props) {
                   type="button"
                   onClick={handleSubmit}
                   disabled={status === "uploading"}
+                  data-testid="action-upload-file"
                   className="px-4 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-xs font-semibold text-white shadow-sm transition disabled:opacity-50"
                 >
                   {status === "uploading" ? "Uploading..." : "Upload"}

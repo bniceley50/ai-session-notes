@@ -1,12 +1,14 @@
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "crypto";
 import path from "path";
+import { TID } from "./selectors";
 
 /**
  * Cancel-flow E2E test.
  *
  * Proves that cancelling a job mid-run:
  *   - Stops processing UI
+ *   - Cancel button locks (disabled) during in-flight action
  *   - Shows a "Job cancelled" notice
  *   - Resets AudioInput so user can re-upload
  *
@@ -42,13 +44,16 @@ test.describe("Cancel Flow", () => {
     await uploadBtn.click();
 
     // ── 4. Wait for processing to start, then click Cancel ────
-    // After upload, AudioInput enters "processing" state and shows Cancel.
-    // The stub pipeline completes fast, but the 2s poll interval means
-    // the AI Analysis panel also shows a Cancel button during transcription.
-    // We look for either Cancel button and click whichever appears first.
-    const cancelBtn = page.getByRole("button", { name: "Cancel" }).first();
+    // After upload, AudioInput and AI Analysis panels both show Cancel
+    // buttons during processing. We grab whichever appears first.
+    const cancelBtn = page.getByTestId(TID.action.cancelJob).first();
     await expect(cancelBtn).toBeVisible({ timeout: 10_000 });
     await cancelBtn.click();
+
+    // ── 4b. Assert: action lock — Cancel button gone after click ──
+    // After clicking, the button becomes disabled ("Cancelling…") then
+    // disappears as the UI resets. Verify it's no longer clickable.
+    await expect(cancelBtn).not.toBeVisible({ timeout: 2_000 });
 
     // ── 5. Assert: "Job cancelled" notice appears ─────────────
     // Notice shows in both AudioInput and AIAnalysisViewer panels;

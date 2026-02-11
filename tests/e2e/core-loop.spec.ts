@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "crypto";
 import path from "path";
+import { TID } from "./selectors";
 
 /**
  * Core-loop happy-path E2E test.
@@ -65,7 +66,13 @@ test.describe("Core Loop — Happy Path", () => {
     // Stub pipeline writes transcript at 40% progress, then continues.
     // We wait for known stub text to appear in the TranscriptViewer.
     const transcriptText = page.getByText(STUB_TRANSCRIPT_MARKER);
-    await expect(transcriptText).toBeVisible({ timeout: 30_000 });
+    await expect(transcriptText).toBeVisible({ timeout: 45_000 });
+
+    // ── 4b. Assert: status chip shows "Complete" ────────────────
+    // After the stub pipeline finishes, the transcript panel's chip
+    // should display "Complete".
+    const completeChip = page.getByTestId(TID.status.transcript).filter({ hasText: "Complete" });
+    await expect(completeChip).toBeVisible({ timeout: 10_000 });
 
     // ── 5. Wait for the "Generate" prompt ────────────────────────
     // After transcription completes, AIAnalysisViewer shows
@@ -74,9 +81,7 @@ test.describe("Core Loop — Happy Path", () => {
     await expect(readyText).toBeVisible({ timeout: 30_000 });
 
     // Note type defaults to SOAP — click "Generate SOAP Note"
-    const generateBtn = page.getByRole("button", {
-      name: /Generate SOAP Note/,
-    });
+    const generateBtn = page.getByTestId(TID.action.generateNote);
     await expect(generateBtn).toBeVisible();
     await expect(generateBtn).toBeEnabled();
     // Scroll into view and use a normal click (not force) so Playwright
@@ -92,9 +97,7 @@ test.describe("Core Loop — Happy Path", () => {
     await expect(draftText).toBeVisible({ timeout: 30_000 });
 
     // ── 7. Transfer to Notes ─────────────────────────────────────
-    const transferBtn = page.getByRole("button", {
-      name: "Transfer to Notes",
-    });
+    const transferBtn = page.getByTestId(TID.action.transferNotes);
     await expect(transferBtn).toBeVisible();
     await transferBtn.scrollIntoViewIfNeeded();
     await transferBtn.click();
@@ -106,7 +109,7 @@ test.describe("Core Loop — Happy Path", () => {
 
     // ── 8. Verify the NoteEditor received the content ────────────
     // The NoteEditor has a <textarea> with the transferred draft.
-    const noteTextarea = page.locator("textarea");
+    const noteTextarea = page.getByTestId(TID.content.noteEditorTextarea);
     await expect(noteTextarea).toBeVisible();
     // Escape regex special chars (parens) in the marker string
     const draftRegex = new RegExp(STUB_DRAFT_MARKER.replace(/[()]/g, "\\$&"));

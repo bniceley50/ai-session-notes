@@ -1,0 +1,100 @@
+name: CI Failure
+description: Report a failed CI run with required triage data
+title: "CI failure: <workflow> - <short summary>"
+labels: ["ci-failure"]
+assignees: []
+
+body:
+  - type: input
+    id: workflow
+    attributes:
+      label: Workflow name
+      placeholder: "e.g. e2e-playwright, typecheck, lint"
+    validations:
+      required: true
+
+  - type: input
+    id: failed-step
+    attributes:
+      label: Failed job + step
+      placeholder: "e.g. Run Playwright tests → step 4"
+    validations:
+      required: true
+
+  - type: input
+    id: run-url
+    attributes:
+      label: Run URL
+      placeholder: "https://github.com/…/actions/runs/…"
+    validations:
+      required: true
+
+  - type: input
+    id: branch-sha
+    attributes:
+      label: Branch and commit SHA
+      placeholder: "e.g. feat/my-branch @ abc1234"
+    validations:
+      required: true
+
+  - type: textarea
+    id: first-error
+    attributes:
+      label: First error line
+      description: Copy the first meaningful error line from the CI log.
+      placeholder: "TS2307: Cannot find module '@/lib/jobs/status'"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Failure category
+      options:
+        - typecheck
+        - lint
+        - unit/integration tests
+        - playwright/e2e
+        - infra/setup
+        - unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: local-repro
+    attributes:
+      label: Local repro attempted?
+      options:
+        - "yes"
+        - "no"
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro-output
+    attributes:
+      label: Repro command + output snippet
+      description: Paste the command you ran and the relevant output.
+      placeholder: |
+        $ pnpm tsc --noEmit
+        src/lib/jobs/status.ts(12,5): error TS2307: ...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: artifacts
+    attributes:
+      label: Artifacts attached
+      options:
+        - label: Playwright trace
+        - label: Screenshot
+        - label: Playwright HTML report link
+        - label: None available
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else relevant (related PRs, recent changes, environment notes).
+    validations:
+      required: false

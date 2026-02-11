@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useSessionJob } from "./SessionJobContext";
+import { JobStatusChip } from "./JobStatusChip";
+import { PanelHeader } from "./PanelHeader";
 import { ProgressBar } from "./ProgressBar";
 import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
@@ -87,10 +89,12 @@ export function TranscriptViewer({ sessionId }: Props) {
 
   return (
     <section className="card-base h-full flex flex-col gap-3 min-h-[260px]">
-      <header className="flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Transcript</h3>
-        <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .docx"]} onChange={handleExport} />
-      </header>
+      <PanelHeader
+        testId="panel-header-transcript"
+        title="Transcript"
+        status={job ? <JobStatusChip status={job.status} stage={job.stage} testId="status-chip-transcript" /> : undefined}
+        actions={<DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .docx"]} onChange={handleExport} />}
+      />
       <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
         {loading ? (
           <p className="text-slate-500">Loading...</p>
@@ -107,7 +111,7 @@ export function TranscriptViewer({ sessionId }: Props) {
             </p>
           </div>
         ) : isReady && transcript ? (
-          <pre className="whitespace-pre-wrap font-sans">{transcript}</pre>
+          <pre data-testid="transcript-content" className="whitespace-pre-wrap font-sans">{transcript}</pre>
         ) : isRunning || (jobId && !isReady) ? (
           <div className="flex flex-col items-center justify-center h-full gap-2">
             <ProgressBar
@@ -117,6 +121,7 @@ export function TranscriptViewer({ sessionId }: Props) {
               indeterminate={!job || job.progress < 40}
             />
             <Button
+              data-testid="action-cancel-job"
               variant="ghost"
               size="xs"
               onClick={() => void cancelJob()}
