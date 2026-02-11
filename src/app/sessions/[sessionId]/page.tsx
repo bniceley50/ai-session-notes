@@ -4,7 +4,7 @@ import { AudioInput } from "@/components/session/AudioInput";
 import { TranscriptViewer } from "@/components/session/TranscriptViewer";
 import { AIAnalysisViewer } from "@/components/session/AIAnalysisViewer";
 import { NoteEditor } from "@/components/session/NoteEditor";
-import { SessionHistoryStrip } from "@/components/session/SessionHistoryStrip";
+
 
 type SessionDetailPageProps = {
   params: Promise<{ sessionId: string }>;
@@ -55,10 +55,6 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
         </div>
       </SessionJobProvider>
 
-      {/* SESSION HISTORY STRIP — Takes ~20-25% of height */}
-      <div className="flex-[1] min-h-0">
-        <SessionHistoryStrip currentSessionId={decodedSessionId} />
-      </div>
     </div>
   );
 }

@@ -19,7 +19,8 @@ export type TranscriptionResult = {
  */
 export async function transcribeAudio(
   sessionId: string,
-  artifactId: string
+  artifactId: string,
+  signal?: AbortSignal,
 ): Promise<TranscriptionResult> {
   // Get audio metadata to find the stored filename
   const metadata = await readAudioMetadata(sessionId, artifactId);
@@ -34,13 +35,16 @@ export async function transcribeAudio(
   const audioStream = fs.createReadStream(audioPath);
 
   try {
-    // Call Whisper API
-    const response = await openai.audio.transcriptions.create({
-      file: audioStream,
-      model: "whisper-1",
-      language: "en", // Adjust if you need other languages
-      response_format: "verbose_json", // Get metadata like duration
-    });
+    // Call Whisper API — pass signal so timeout can abort the HTTP request
+    const response = await openai.audio.transcriptions.create(
+      {
+        file: audioStream,
+        model: "whisper-1",
+        language: "en",
+        response_format: "verbose_json",
+      },
+      { signal },
+    );
 
     return {
       text: response.text,

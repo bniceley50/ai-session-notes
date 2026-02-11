@@ -15,7 +15,7 @@
 import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-export type NoteType = "soap" | "dap" | "birp" | "freeform";
+export type NoteType = "soap" | "dap" | "birp" | "girp" | "intake" | "progress" | "freeform";
 
 export type Note = {
   id: string;

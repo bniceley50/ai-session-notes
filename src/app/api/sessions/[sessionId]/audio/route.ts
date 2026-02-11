@@ -22,8 +22,8 @@ export const dynamic = "force-dynamic";
 
 const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 const MIME_EXTENSION: Record<string, string> = {
+  // Audio formats (Whisper-native)
   "audio/webm": ".webm",
-  "video/webm": ".webm",
   "audio/wav": ".wav",
   "audio/x-wav": ".wav",
   "audio/mpeg": ".mp3",
@@ -32,6 +32,11 @@ const MIME_EXTENSION: Record<string, string> = {
   "audio/x-m4a": ".m4a",
   "audio/m4a": ".m4a",
   "audio/x-mpegurl": ".m4a",
+  // Video formats (Whisper accepts mp4/webm/mpeg natively)
+  "video/webm": ".webm",
+  "video/mp4": ".mp4",
+  "video/mpeg": ".mpeg",
+  "video/quicktime": ".mov",
   "application/octet-stream": ".bin", // Fallback for generic uploads
 };
 

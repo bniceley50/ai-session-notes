@@ -6,6 +6,9 @@ import { loadNote, saveNote, type NoteType } from "@/lib/supabase/notes";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Supabase session_id column is UUID — reject non-UUID values early */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
 };
@@ -27,11 +30,17 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
     return jsonError(400, "BAD_REQUEST", "sessionId required");
   }
 
+  // 2b. If sessionId isn't a valid UUID, no notes can exist yet — return empty
+  if (!UUID_RE.test(sessionId)) {
+    return NextResponse.json({ content: "" }, { status: 200 });
+  }
+
   // 3. Parse noteType from query string
   const { searchParams } = new URL(request.url);
   const noteType = searchParams.get("type") as NoteType | null;
-  if (!noteType || !["soap", "dap", "birp", "freeform"].includes(noteType)) {
-    return jsonError(400, "BAD_REQUEST", "Valid note type required (soap, dap, birp, freeform)");
+  const VALID_NOTE_TYPES = ["soap", "dap", "birp", "girp", "intake", "progress", "freeform"];
+  if (!noteType || !VALID_NOTE_TYPES.includes(noteType)) {
+    return jsonError(400, "BAD_REQUEST", "Valid note type required (soap, dap, birp, girp, intake, progress, freeform)");
   }
 
   // 4. Map practiceId → orgId (MVP: direct mapping)
@@ -76,6 +85,11 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     return jsonError(400, "BAD_REQUEST", "sessionId required");
   }
 
+  // 2b. Reject non-UUID sessionIds early (Supabase column is UUID type)
+  if (!UUID_RE.test(sessionId)) {
+    return jsonError(400, "BAD_REQUEST", "sessionId must be a valid UUID");
+  }
+
   // 3. Parse request body
   let payload: { type?: unknown; content?: unknown } = {};
   try {
@@ -87,8 +101,9 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   const noteType = payload.type as NoteType | undefined;
   const content = typeof payload.content === "string" ? payload.content : undefined;
 
-  if (!noteType || !["soap", "dap", "birp", "freeform"].includes(noteType)) {
-    return jsonError(400, "BAD_REQUEST", "Valid note type required (soap, dap, birp, freeform)");
+  const VALID_NOTE_TYPES_POST = ["soap", "dap", "birp", "girp", "intake", "progress", "freeform"];
+  if (!noteType || !VALID_NOTE_TYPES_POST.includes(noteType)) {
+    return jsonError(400, "BAD_REQUEST", "Valid note type required (soap, dap, birp, girp, intake, progress, freeform)");
   }
 
   if (content === undefined) {

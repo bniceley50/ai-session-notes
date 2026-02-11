@@ -75,3 +75,12 @@ conversation-sample.mp3
 conversation-test.webm
 test-audio.webm
 .local/
+
+# Windows NUL device artifact (secrets leak risk)
+nul
+
+# Editor configs
+.cursorrules
+
+# Wednesday AI
+.wednesday/

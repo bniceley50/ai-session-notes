@@ -1,56 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSessionJob } from "./SessionJobContext";
+import { ProgressBar } from "./ProgressBar";
+import { DropdownButton } from "@/components/ui/DropdownButton";
 
 type Props = { sessionId: string };
 
-function DropdownButton({ label, options, onChange }: {
-  label: string;
-  options: string[];
-  onChange?: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-      >
-        {label}
-        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-10 min-w-[120px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => { onChange?.(opt); setOpen(false); }}
-              className="block w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function TranscriptViewer({ sessionId }: Props) {
-  const { jobId, job } = useSessionJob();
+  const { jobId, job, cancelJob } = useSessionJob();
   const [transcript, setTranscript] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
@@ -88,8 +46,9 @@ export function TranscriptViewer({ sessionId }: Props) {
     void fetchTranscript();
   }, [jobId, job, transcript]);
 
+  const isFailed = job?.status === "failed";
   const isReady = job && (job.status === "complete" || job.progress >= 40);
-  const content = isReady ? transcript : "Waiting for transcription...";
+  const isRunning = job && job.status !== "complete" && job.status !== "failed" && !isReady;
 
   const handleExport = (option: string) => {
     if (!transcript || transcript === "") {
@@ -132,8 +91,40 @@ export function TranscriptViewer({ sessionId }: Props) {
       <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
         {loading ? (
           <p className="text-slate-500">Loading...</p>
+        ) : isFailed ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2">
+            <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+              <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-red-600">Transcription failed</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[260px] text-center">
+              {job?.errorMessage ?? "Unknown error"}
+            </p>
+          </div>
+        ) : isReady && transcript ? (
+          <pre className="whitespace-pre-wrap font-sans">{transcript}</pre>
+        ) : isRunning || (jobId && !isReady) ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2">
+            <ProgressBar
+              progress={job?.progress ?? 0}
+              stage={job?.stage ?? "transcribe"}
+              label="Transcribing audio"
+              indeterminate={!job || job.progress < 40}
+            />
+            <button
+              type="button"
+              onClick={() => void cancelJob()}
+              className="text-xs text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition mt-1"
+            >
+              Cancel
+            </button>
+          </div>
         ) : (
-          <pre className="whitespace-pre-wrap font-sans">{content}</pre>
+          <div className="flex items-center justify-center h-full">
+            <p className="text-sm text-slate-500">Upload audio to see transcript.</p>
+          </div>
         )}
       </div>
     </section>
