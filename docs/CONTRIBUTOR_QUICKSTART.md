@@ -8,13 +8,13 @@ One-page onboarding for anyone opening a PR against this repo.
 
 ```bash
 # Prerequisites: Node >= 22, pnpm 10.x
-corepack enable          # activates the pnpm version pinned in package.json
-pnpm install             # install deps (lockfile is committed)
-cp .env.example .env     # fill in required values (see comments in file)
-pnpm dev                 # start Next.js dev server on localhost:3000
+corepack enable              # activates the pnpm version pinned in package.json
+pnpm install                 # install deps (lockfile is committed)
+cp .env.example .env.local   # fill in required values (see comments in file)
+pnpm dev                     # start Next.js dev server on localhost:3000
 ```
 
-> **No `.env.example` yet?** Ask the maintainer — secrets are never committed.
+> **Stub mode** is the default in `.env.example` — no API keys needed to run locally. The app uses fake transcription/generation so you can develop without spending money. See the comments in `.env.example` for details.
 
 ## 2. Required checks
 
