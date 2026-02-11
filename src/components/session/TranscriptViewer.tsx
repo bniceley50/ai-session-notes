@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { useSessionJob } from "./SessionJobContext";
 import { ProgressBar } from "./ProgressBar";
+import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
 
 type Props = { sessionId: string };
@@ -52,15 +54,15 @@ export function TranscriptViewer({ sessionId }: Props) {
 
   const handleExport = (option: string) => {
     if (!transcript || transcript === "") {
-      alert("No transcript available to export yet.");
+      toast.warning("No transcript available to export yet.");
       return;
     }
 
     switch (option) {
       case "Copy Text":
         navigator.clipboard.writeText(transcript)
-          .then(() => alert("Copied to clipboard!"))
-          .catch(() => alert("Failed to copy to clipboard."));
+          .then(() => toast.success("Copied to clipboard"))
+          .catch(() => toast.error("Failed to copy to clipboard"));
         break;
 
       case "Download .txt": {
@@ -73,11 +75,12 @@ export function TranscriptViewer({ sessionId }: Props) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        toast.success("Download started");
         break;
       }
 
       case "Download .docx":
-        alert("Word document export coming soon!");
+        toast.info("Word document export coming soon");
         break;
     }
   };
@@ -113,13 +116,14 @@ export function TranscriptViewer({ sessionId }: Props) {
               label="Transcribing audio"
               indeterminate={!job || job.progress < 40}
             />
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={() => void cancelJob()}
-              className="text-xs text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition mt-1"
+              className="mt-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="flex items-center justify-center h-full">

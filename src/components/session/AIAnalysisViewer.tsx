@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { toast } from "sonner";
+import { ArrowDown } from "lucide-react";
 import { useSessionJob } from "./SessionJobContext";
 import { ProgressBar } from "./ProgressBar";
+import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
 import { jsPDF } from "jspdf";
 import type { ClinicalNoteType } from "@/lib/jobs/claude";
@@ -172,15 +175,15 @@ export function AIAnalysisViewer({ sessionId }: Props) {
 
   const handleExport = (option: string) => {
     if (!draft || draft === "") {
-      alert("No content available to export yet.");
+      toast.warning("No content available to export yet.");
       return;
     }
 
     switch (option) {
       case "Copy Text":
         navigator.clipboard.writeText(draft)
-          .then(() => alert("Copied to clipboard!"))
-          .catch(() => alert("Failed to copy to clipboard."));
+          .then(() => toast.success("Copied to clipboard"))
+          .catch(() => toast.error("Failed to copy to clipboard"));
         break;
 
       case "Download .txt": {
@@ -225,7 +228,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
 
           doc.save(`${selectedNoteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.pdf`);
         } catch (error) {
-          alert("Failed to generate PDF.");
+          toast.error("Failed to generate PDF");
         }
         break;
       }
@@ -238,18 +241,17 @@ export function AIAnalysisViewer({ sessionId }: Props) {
         <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">AI Analysis</h3>
         <div className="flex items-center gap-2">
           {analysisReady && draft && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="xs"
               onClick={handleTransferToNotes}
               disabled={transferred}
-              className="inline-flex items-center gap-1 rounded-lg border border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition disabled:opacity-50"
+              className="border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
               title="Copy AI draft into Structured Notes below"
             >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
+              <ArrowDown />
               {transferred ? "Transferred!" : "Transfer to Notes"}
-            </button>
+            </Button>
           )}
           <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .pdf"]} onChange={handleExport} />
         </div>
@@ -268,13 +270,14 @@ export function AIAnalysisViewer({ sessionId }: Props) {
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-[260px] text-center">
               {analysisJob?.errorMessage ?? "Unknown error"}
             </p>
-            <button
-              type="button"
+            <Button
+              variant="link"
+              size="xs"
               onClick={() => void cancelAnalysisJob()}
-              className="mt-1 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 font-semibold"
+              className="mt-1 text-indigo-600 dark:text-indigo-400"
             >
               Dismiss &amp; retry
-            </button>
+            </Button>
           </div>
         ) : analysisReady && draft ? (
           <pre className="whitespace-pre-wrap font-sans">{draft}</pre>
@@ -286,13 +289,14 @@ export function AIAnalysisViewer({ sessionId }: Props) {
               label={`Generating ${selectedLabel}`}
               indeterminate={!analysisJob || analysisJob.progress < 80}
             />
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={() => void cancelAnalysisJob()}
-              className="text-xs text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition mt-1"
+              className="mt-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         ) : transcriptFailed ? (
           <div className="flex flex-col items-center justify-center h-full gap-2">
@@ -321,14 +325,13 @@ export function AIAnalysisViewer({ sessionId }: Props) {
                 ))}
               </select>
             </div>
-            <button
-              type="button"
+            <Button
               onClick={handleGenerateNote}
               disabled={starting}
-              className="px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50"
+              className="bg-indigo-600 hover:bg-indigo-700 shadow-sm px-6"
             >
               {starting ? "Starting..." : `Generate ${selectedLabel}`}
-            </button>
+            </Button>
             {startError && <p className="text-sm text-red-600">{startError}</p>}
           </div>
         ) : transcribeJobId && !transcriptReady ? (
@@ -340,13 +343,14 @@ export function AIAnalysisViewer({ sessionId }: Props) {
               indeterminate={!transcribeJob || transcribeJob.progress < 40}
               subtitle=""
             />
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={() => void cancelJob()}
-              className="text-xs text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition mt-1"
+              className="mt-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="flex items-center justify-center h-full">

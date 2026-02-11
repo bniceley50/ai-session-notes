@@ -1,8 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { toast } from "sonner";
+import { Save, Trash2 } from "lucide-react";
 import { useSessionJob } from "./SessionJobContext";
+import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { jsPDF } from "jspdf";
 
 type Props = { sessionId: string };
@@ -25,6 +33,7 @@ export function NoteEditor({ sessionId }: Props) {
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   // When a transfer just happened, skip the next fetch so it doesn't overwrite
   const skipNextFetchRef = useRef(false);
 
@@ -122,10 +131,7 @@ export function NoteEditor({ sessionId }: Props) {
   };
 
   const handleClear = async () => {
-    if (!confirm("Are you sure you want to clear this note?")) {
-      return;
-    }
-
+    setConfirmClearOpen(false);
     setNote("");
     setSaving(true);
     setError("");
@@ -151,15 +157,15 @@ export function NoteEditor({ sessionId }: Props) {
 
   const handleExport = (option: string) => {
     if (!note || note.trim() === "") {
-      alert("No content available to export yet.");
+      toast.warning("No content available to export yet.");
       return;
     }
 
     switch (option) {
       case "Copy to Clipboard":
         navigator.clipboard.writeText(note)
-          .then(() => alert("Copied to clipboard!"))
-          .catch(() => alert("Failed to copy to clipboard."));
+          .then(() => toast.success("Copied to clipboard"))
+          .catch(() => toast.error("Failed to copy to clipboard"));
         break;
 
       case "Download .txt": {
@@ -176,7 +182,7 @@ export function NoteEditor({ sessionId }: Props) {
       }
 
       case "Download .docx":
-        alert("Word document export coming soon!");
+        toast.info("Word document export coming soon");
         break;
 
       case "Download .pdf": {
@@ -208,7 +214,7 @@ export function NoteEditor({ sessionId }: Props) {
 
           doc.save(`${noteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.pdf`);
         } catch (error) {
-          alert("Failed to generate PDF.");
+          toast.error("Failed to generate PDF");
         }
         break;
       }
@@ -242,33 +248,17 @@ export function NoteEditor({ sessionId }: Props) {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-            </svg>
-            Save Draft
-          </button>
-          <button
-            type="button"
-            onClick={handleClear}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            Clear
-          </button>
+          <Button variant="outline" size="sm" onClick={handleSaveDraft}>
+            <Save /> Save Draft
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setConfirmClearOpen(true)}>
+            <Trash2 /> Clear
+          </Button>
           <DropdownButton
             label="Copy/Export"
             options={["Copy to Clipboard", "Download .txt", "Download .docx", "Download .pdf"]}
             onChange={handleExport}
-            buttonClassName="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-semibold text-white transition shadow-sm"
-            itemClassName="block w-full text-left px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-            menuClassName="absolute right-0 top-full mt-1 z-10 min-w-[140px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg py-1"
+            buttonClassName="bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-sm"
           />
         </div>
       </header>
@@ -300,6 +290,23 @@ export function NoteEditor({ sessionId }: Props) {
           </>
         )}
       </div>
+
+      <AlertDialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will erase all content in the current note. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => void handleClear()}>
+              Clear
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
