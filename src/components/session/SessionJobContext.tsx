@@ -100,7 +100,6 @@ export function SessionJobProvider({ sessionId, children }: Props) {
         // Best-effort — UI is already reset
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
   const onTransferToNotes = useCallback((cb: TransferToNotesCallback) => {
