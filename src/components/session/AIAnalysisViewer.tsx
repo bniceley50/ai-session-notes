@@ -48,8 +48,10 @@ export function AIAnalysisViewer({ sessionId }: Props) {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState("");
   const [selectedNoteType, setSelectedNoteType] = useState<ClinicalNoteType>("soap");
-  const [transferred, setTransferred] = useState(false);
+  const [transferState, setTransferState] = useState<"idle" | "success" | "error">("idle");
+  const [transferError, setTransferError] = useState("");
   const analysisPollRef = useRef<number | null>(null);
+  const transferTimerRef = useRef<number | null>(null);
 
   const stopAnalysisPolling = () => {
     if (analysisPollRef.current !== null) {
@@ -115,13 +117,29 @@ export function AIAnalysisViewer({ sessionId }: Props) {
     void fetchDraft();
   }, [analysisJobId, analysisJob, draft]);
 
+  // Auto-clear transfer success state after 2 seconds
+  useEffect(() => {
+    if (transferState === "success") {
+      transferTimerRef.current = window.setTimeout(() => {
+        setTransferState("idle");
+      }, 2000);
+    }
+    return () => {
+      if (transferTimerRef.current !== null) {
+        window.clearTimeout(transferTimerRef.current);
+        transferTimerRef.current = null;
+      }
+    };
+  }, [transferState]);
+
   // Reset when a new transcription starts
   useEffect(() => {
     setAnalysisJobId(null);
     setAnalysisJob(null);
     setDraft("");
     setStartError("");
-    setTransferred(false);
+    setTransferState("idle");
+    setTransferError("");
     stopAnalysisPolling();
   }, [transcribeJobId]);
 
@@ -132,7 +150,8 @@ export function AIAnalysisViewer({ sessionId }: Props) {
     }
     setStarting(true);
     setStartError("");
-    setTransferred(false);
+    setTransferState("idle");
+    setTransferError("");
     try {
       const response = await fetch("/api/jobs/create", {
         method: "POST",
@@ -157,9 +176,14 @@ export function AIAnalysisViewer({ sessionId }: Props) {
   };
 
   const handleTransferToNotes = () => {
-    if (draft) {
+    if (!draft) return;
+    try {
       transferToNotes(draft, selectedNoteType);
-      setTransferred(true);
+      setTransferState("success");
+      setTransferError("");
+    } catch (err) {
+      setTransferState("error");
+      setTransferError(err instanceof Error ? err.message : "Transfer failed");
     }
   };
 
@@ -241,17 +265,37 @@ export function AIAnalysisViewer({ sessionId }: Props) {
         <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">AI Analysis</h3>
         <div className="flex items-center gap-2">
           {analysisReady && draft && (
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={handleTransferToNotes}
-              disabled={transferred}
-              className="border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
-              title="Copy AI draft into Structured Notes below"
-            >
-              <ArrowDown />
-              {transferred ? "Transferred!" : "Transfer to Notes"}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={handleTransferToNotes}
+                disabled={transferState === "success"}
+                className={
+                  transferState === "success"
+                    ? "border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                    : "border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                }
+                title="Copy AI draft into Structured Notes below"
+              >
+                {transferState === "success" ? (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    Transferred!
+                  </>
+                ) : (
+                  <>
+                    <ArrowDown />
+                    Transfer to Notes
+                  </>
+                )}
+              </Button>
+              {transferState === "error" && transferError && (
+                <span className="text-xs text-red-600 dark:text-red-400">{transferError}</span>
+              )}
+            </>
           )}
           <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .pdf"]} onChange={handleExport} />
         </div>
