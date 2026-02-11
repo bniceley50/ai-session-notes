@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { toast } from "sonner";
 import { useSessionJob } from "./SessionJobContext";
 import { JobStatusChip } from "./JobStatusChip";
 import { PanelHeader } from "./PanelHeader";
 import { ProgressBar } from "./ProgressBar";
 import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
+import { handleExportAction } from "@/lib/export/download";
+import type { ExportAction } from "@/lib/export/download";
 
 type Props = { sessionId: string };
 
@@ -54,37 +55,19 @@ export function TranscriptViewer({ sessionId }: Props) {
   const isReady = job && (job.status === "complete" || job.progress >= 40);
   const isRunning = job && job.status !== "complete" && job.status !== "failed" && !isReady;
 
+  const EXPORT_OPTIONS = ["Copy Text", "Download .txt"] as const;
+  const EXPORT_MAP: Record<string, ExportAction> = {
+    "Copy Text": "copy",
+    "Download .txt": "txt",
+  };
+
   const handleExport = (option: string) => {
-    if (!transcript || transcript === "") {
-      toast.warning("No transcript available to export yet.");
-      return;
-    }
-
-    switch (option) {
-      case "Copy Text":
-        navigator.clipboard.writeText(transcript)
-          .then(() => toast.success("Copied to clipboard"))
-          .catch(() => toast.error("Failed to copy to clipboard"));
-        break;
-
-      case "Download .txt": {
-        const blob = new Blob([transcript], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `transcript-${sessionId}-${new Date().toISOString().split("T")[0]}.txt`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        toast.success("Download started");
-        break;
-      }
-
-      case "Download .docx":
-        toast.info("Word document export coming soon");
-        break;
-    }
+    const action = EXPORT_MAP[option];
+    if (!action) return;
+    handleExportAction(action, transcript, {
+      filenamePrefix: "transcript",
+      sessionId,
+    });
   };
 
   return (
@@ -93,7 +76,7 @@ export function TranscriptViewer({ sessionId }: Props) {
         testId="panel-header-transcript"
         title="Transcript"
         status={job ? <JobStatusChip status={job.status} stage={job.stage} testId="status-chip-transcript" /> : undefined}
-        actions={<DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .docx"]} onChange={handleExport} />}
+        actions={<DropdownButton data-testid="export-transcript" label="Export" options={[...EXPORT_OPTIONS]} onChange={handleExport} />}
       />
       <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
         {loading ? (

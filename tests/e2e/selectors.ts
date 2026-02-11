@@ -40,6 +40,13 @@ export const TID = {
     analysis: "status-chip-analysis",
   },
 
+  // ── Export dropdowns ──────────────────────────────────────
+  export: {
+    transcript: "export-transcript",
+    analysis: "export-analysis",
+    notes: "export-notes",
+  },
+
   // ── Content regions ─────────────────────────────────────
   content: {
     transcript: "transcript-content",

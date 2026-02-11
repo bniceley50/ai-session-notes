@@ -116,5 +116,12 @@ test.describe("Core Loop — Happy Path", () => {
     await expect(noteTextarea).toHaveValue(draftRegex, {
       timeout: 5_000,
     });
+
+    // ── 9. Assert: all three Export dropdowns are visible ───────
+    // After full pipeline completion, every panel should offer its
+    // export dropdown so the user can copy or download content.
+    await expect(page.getByTestId(TID.export.transcript)).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId(TID.export.analysis)).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId(TID.export.notes)).toBeVisible({ timeout: 5_000 });
   });
 });

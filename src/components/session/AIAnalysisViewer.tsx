@@ -9,7 +9,8 @@ import { PanelHeader } from "./PanelHeader";
 import { ProgressBar } from "./ProgressBar";
 import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
-import { jsPDF } from "jspdf";
+import { handleExportAction } from "@/lib/export/download";
+import type { ExportAction } from "@/lib/export/download";
 import type { ClinicalNoteType } from "@/lib/jobs/claude";
 import type { JobStage, JobStatus } from "@/lib/jobs/status";
 
@@ -201,66 +202,20 @@ export function AIAnalysisViewer({ sessionId }: Props) {
 
   const selectedLabel = NOTE_TYPE_OPTIONS.find((o) => o.value === selectedNoteType)?.label ?? "Note";
 
+  const EXPORT_OPTIONS = ["Copy Text", "Download .txt", "Download .pdf"] as const;
+  const EXPORT_MAP: Record<string, ExportAction> = {
+    "Copy Text": "copy",
+    "Download .txt": "txt",
+    "Download .pdf": "pdf",
+  };
+
   const handleExport = (option: string) => {
-    if (!draft || draft === "") {
-      toast.warning("No content available to export yet.");
-      return;
-    }
-
-    switch (option) {
-      case "Copy Text":
-        navigator.clipboard.writeText(draft)
-          .then(() => toast.success("Copied to clipboard"))
-          .catch(() => toast.error("Failed to copy to clipboard"));
-        break;
-
-      case "Download .txt": {
-        const blob = new Blob([draft], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${selectedNoteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.txt`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        break;
-      }
-
-      case "Download .pdf": {
-        try {
-          const doc = new jsPDF();
-          const pageWidth = doc.internal.pageSize.getWidth();
-          const pageHeight = doc.internal.pageSize.getHeight();
-          const margins = 20;
-          const maxWidth = pageWidth - margins * 2;
-          const lineHeight = 6;
-          let currentY = margins;
-
-          // Split text into lines that fit the page width
-          const lines = doc.splitTextToSize(draft, maxWidth);
-
-          doc.setFontSize(10);
-
-          // Add lines with pagination
-          for (let i = 0; i < lines.length; i++) {
-            // Check if we need a new page
-            if (currentY + lineHeight > pageHeight - margins) {
-              doc.addPage();
-              currentY = margins;
-            }
-
-            doc.text(lines[i], margins, currentY);
-            currentY += lineHeight;
-          }
-
-          doc.save(`${selectedNoteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.pdf`);
-        } catch (error) {
-          toast.error("Failed to generate PDF");
-        }
-        break;
-      }
-    }
+    const action = EXPORT_MAP[option];
+    if (!action) return;
+    handleExportAction(action, draft, {
+      filenamePrefix: `${selectedNoteType}-note`,
+      sessionId,
+    });
   };
 
   return (
@@ -311,7 +266,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
                 )}
               </>
             )}
-            <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .pdf"]} onChange={handleExport} />
+            <DropdownButton data-testid="export-analysis" label="Export" options={[...EXPORT_OPTIONS]} onChange={handleExport} />
           </div>
         }
       />
