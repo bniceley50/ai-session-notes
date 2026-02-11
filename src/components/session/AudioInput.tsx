@@ -15,7 +15,7 @@ type UploadResponse = {
 
 
 export function AudioInput({ sessionId }: Props) {
-  const { audioArtifactId, setAudioArtifactId, setJobId, startPolling, job, cancelJob, jobNotice, clearJobNotice } = useSessionJob();
+  const { audioArtifactId, setAudioArtifactId, setJobId, startPolling, job, cancelJob, deleteJob, jobNotice, clearJobNotice } = useSessionJob();
   const [status, setStatus] = useState<"idle" | "uploading" | "processing" | "error">("idle");
   const [error, setError] = useState<string>("");
   const [uploadedFilename, setUploadedFilename] = useState<string>("");
@@ -282,16 +282,27 @@ export function AudioInput({ sessionId }: Props) {
             )}
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 truncate max-w-[200px]">{uploadedFilename}</p>
             {status !== "processing" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAudioArtifactId(null);
-                  setUploadedFilename("");
-                }}
-                className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-              >
-                Upload Different File
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAudioArtifactId(null);
+                    setUploadedFilename("");
+                  }}
+                  className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                >
+                  Upload Different File
+                </button>
+                {(job?.status === "complete" || job?.status === "failed") && (
+                  <button
+                    type="button"
+                    onClick={() => { void deleteJob(); setStatus("idle"); setUploadedFilename(""); setSelectedFile(null); }}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                  >
+                    Delete job
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
