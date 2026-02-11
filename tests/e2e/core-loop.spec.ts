@@ -67,6 +67,12 @@ test.describe("Core Loop — Happy Path", () => {
     const transcriptText = page.getByText(STUB_TRANSCRIPT_MARKER);
     await expect(transcriptText).toBeVisible({ timeout: 30_000 });
 
+    // ── 4b. Assert: status chip shows "Complete" ────────────────
+    // After the stub pipeline finishes, at least one JobStatusChip
+    // should display "Complete" in the panel headers.
+    const completeChip = page.getByTestId("job-status-chip").filter({ hasText: "Complete" }).first();
+    await expect(completeChip).toBeVisible({ timeout: 10_000 });
+
     // ── 5. Wait for the "Generate" prompt ────────────────────────
     // After transcription completes, AIAnalysisViewer shows
     // "Transcript ready. Choose a note type and generate."

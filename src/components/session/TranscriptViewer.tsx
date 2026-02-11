@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useSessionJob } from "./SessionJobContext";
+import { JobStatusChip } from "./JobStatusChip";
 import { ProgressBar } from "./ProgressBar";
 import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
@@ -87,8 +88,11 @@ export function TranscriptViewer({ sessionId }: Props) {
 
   return (
     <section className="card-base h-full flex flex-col gap-3 min-h-[260px]">
-      <header className="flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Transcript</h3>
+      <header className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Transcript</h3>
+          {job && <JobStatusChip status={job.status} stage={job.stage} />}
+        </div>
         <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .docx"]} onChange={handleExport} />
       </header>
       <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">

@@ -4,11 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { ArrowDown } from "lucide-react";
 import { useSessionJob } from "./SessionJobContext";
+import { JobStatusChip } from "./JobStatusChip";
 import { ProgressBar } from "./ProgressBar";
 import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
 import { jsPDF } from "jspdf";
 import type { ClinicalNoteType } from "@/lib/jobs/claude";
+import type { JobStage, JobStatus } from "@/lib/jobs/status";
 
 type Props = { sessionId: string };
 
@@ -263,7 +265,14 @@ export function AIAnalysisViewer({ sessionId }: Props) {
   return (
     <section className="card-base h-full flex flex-col gap-3 min-h-[260px]">
       <header className="flex items-center justify-between gap-2">
-        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">AI Analysis</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">AI Analysis</h3>
+          {analysisJob ? (
+            <JobStatusChip status={analysisJob.status as JobStatus} stage={analysisJob.stage as JobStage} />
+          ) : transcribeJob ? (
+            <JobStatusChip status={transcribeJob.status} stage={transcribeJob.stage} />
+          ) : null}
+        </div>
         <div className="flex items-center gap-2">
           {analysisReady && draft && (
             <>
