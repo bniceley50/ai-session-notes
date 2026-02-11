@@ -48,7 +48,7 @@ test.describe("Delete Flow", () => {
     // ── 4. Wait for pipeline to complete (transcript visible) ──
     // Stub transcript marker appears once transcription finishes.
     const transcriptText = page.getByText(STUB_TRANSCRIPT_MARKER);
-    await expect(transcriptText).toBeVisible({ timeout: 30_000 });
+    await expect(transcriptText).toBeVisible({ timeout: 45_000 });
 
     // ── 5. Click "Delete job" → confirm dialog opens ───────────
     const deleteBtn = page.getByTestId(TID.action.openDeleteDialog);

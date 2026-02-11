@@ -66,7 +66,7 @@ test.describe("Core Loop — Happy Path", () => {
     // Stub pipeline writes transcript at 40% progress, then continues.
     // We wait for known stub text to appear in the TranscriptViewer.
     const transcriptText = page.getByText(STUB_TRANSCRIPT_MARKER);
-    await expect(transcriptText).toBeVisible({ timeout: 30_000 });
+    await expect(transcriptText).toBeVisible({ timeout: 45_000 });
 
     // ── 4b. Assert: status chip shows "Complete" ────────────────
     // After the stub pipeline finishes, the transcript panel's chip

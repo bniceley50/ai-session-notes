@@ -57,6 +57,9 @@ jobs:
       OPENAI_API_KEY: "sk-ci-dummy"
       ANTHROPIC_API_KEY: "sk-ant-ci-dummy"
 
+      # ── Session autocreate (tests generate random UUIDs) ──
+      ALLOW_SESSION_AUTOCREATE: "1"
+
       # ── Job config ──
       JOB_TTL_SECONDS: "86400"
       JOBS_RUNNER_TOKEN: "ci-runner-token"
