@@ -1,0 +1,98 @@
+# PR15: Run Playwright E2E "core loop" test on every PR and push to main.
+#
+# The test runs in stub mode — no real Whisper/Claude API calls, no Supabase
+# connection. Dev-login bypasses Cognito so we don't need real OAuth secrets.
+#
+# All env vars below are dummy values safe for public CI. No GitHub Secrets
+# are required for this workflow.
+
+name: E2E – Playwright
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright core-loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      # ── Stub mode: no real API calls ──
+      AI_ENABLE_STUB_APIS: "1"
+      AI_ENABLE_REAL_APIS: "0"
+
+      # ── Dev login: bypass Cognito OAuth ──
+      ALLOW_DEV_LOGIN: "1"
+
+      # ── Auth / session (dummy values — dev-login doesn't verify these) ──
+      AUTH_COOKIE_SECRET: "ci-test-secret-at-least-32-bytes!"
+      SESSION_TTL_SECONDS: "3600"
+
+      # ── Practice / org ──
+      DEFAULT_PRACTICE_ID: "practice-ci"
+
+      # ── Cognito (dummy — dev-login skips OAuth, but config.ts reads these at import) ──
+      COGNITO_DOMAIN: "example.auth.us-east-1.amazoncognito.com"
+      COGNITO_CLIENT_ID: "ci-dummy-client-id"
+      COGNITO_CLIENT_SECRET: "ci-dummy-client-secret"
+      COGNITO_REDIRECT_URI: "http://localhost:3000/api/auth/callback"
+      COGNITO_LOGOUT_URI: "http://localhost:3000/"
+      COGNITO_USER_POOL_ID: "us-east-1_dummy"
+      COGNITO_REGION: "us-east-1"
+
+      # ── Supabase (dummy — stub mode doesn't hit Supabase, but client.ts reads these) ──
+      NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder"
+      SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder"
+
+      # ── AI API keys (dummy — stub mode never calls these) ──
+      OPENAI_API_KEY: "sk-ci-dummy"
+      ANTHROPIC_API_KEY: "sk-ant-ci-dummy"
+
+      # ── Job config ──
+      JOB_TTL_SECONDS: "86400"
+      JOBS_RUNNER_TOKEN: "ci-runner-token"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm tsc --noEmit
+
+      - name: Lint
+        run: pnpm eslint src/
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: pnpm exec playwright test
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
