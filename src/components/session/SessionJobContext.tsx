@@ -1,16 +1,27 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { JobStatusFile } from "@/lib/jobs/status";
 
 type JobRecord = JobStatusFile;
 
+/** Callback NoteEditor registers so AIAnalysisViewer can push content into it */
+type TransferToNotesCallback = (content: string, noteType?: string) => void;
+
 type SessionJobContextValue = {
   jobId: string | null;
   job: JobRecord | null;
+  audioArtifactId: string | null;
   setJobId: (id: string | null) => void;
+  setAudioArtifactId: (id: string | null) => void;
   startPolling: (url: string) => void;
   stopPolling: () => void;
+  /** Cancel the current transcription job (DELETE + reset state) */
+  cancelJob: () => Promise<void>;
+  /** Register a callback from NoteEditor to receive transferred content */
+  onTransferToNotes: (cb: TransferToNotesCallback) => void;
+  /** AIAnalysisViewer calls this to push content into NoteEditor */
+  transferToNotes: (content: string, noteType?: string) => void;
 };
 
 const SessionJobContext = createContext<SessionJobContextValue | null>(null);
@@ -25,7 +36,9 @@ type Props = {
 export function SessionJobProvider({ sessionId, children }: Props) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobRecord | null>(null);
+  const [audioArtifactId, setAudioArtifactId] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
+  const transferCallbackRef = useRef<TransferToNotesCallback | null>(null);
 
   const stopPolling = () => {
     if (pollRef.current !== null) {
@@ -68,12 +81,47 @@ export function SessionJobProvider({ sessionId, children }: Props) {
     };
   }, []);
 
+  const cancelJob = useCallback(async () => {
+    const currentJobId = jobId;
+    // Stop polling and reset UI state immediately
+    stopPolling();
+    setJobId(null);
+    setJob(null);
+    setAudioArtifactId(null);
+
+    // Tell the server to mark the job as deleted (pipeline checks shouldStop)
+    if (currentJobId) {
+      try {
+        await fetch(`/api/jobs/${currentJobId}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+      } catch {
+        // Best-effort — UI is already reset
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId]);
+
+  const onTransferToNotes = useCallback((cb: TransferToNotesCallback) => {
+    transferCallbackRef.current = cb;
+  }, []);
+
+  const transferToNotes = useCallback((content: string, noteType?: string) => {
+    transferCallbackRef.current?.(content, noteType);
+  }, []);
+
   const value: SessionJobContextValue = {
     jobId,
     job,
+    audioArtifactId,
     setJobId,
+    setAudioArtifactId,
     startPolling,
     stopPolling,
+    cancelJob,
+    onTransferToNotes,
+    transferToNotes,
   };
 
   return <SessionJobContext.Provider value={value}>{children}</SessionJobContext.Provider>;

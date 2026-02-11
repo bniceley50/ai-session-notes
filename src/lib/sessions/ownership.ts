@@ -1,6 +1,7 @@
 ﻿import fs from "node:fs/promises";
 import path from "node:path";
 import { ARTIFACTS_ROOT, safePathSegment } from "@/lib/jobs/artifacts";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type SessionOwnership = {
   sessionId: string;
@@ -39,19 +40,52 @@ export const readSessionOwnership = async (
 
 export const writeSessionOwnership = async (
   sessionId: string,
-  ownerUserId: string
+  ownerUserId: string,
+  orgId?: string
 ): Promise<SessionOwnership> => {
   const createdAt = new Date().toISOString();
   const payload: SessionOwnership = { sessionId, ownerUserId, createdAt };
+
+  // Write to filesystem
   await fs.mkdir(SESSION_INDEX_DIR, { recursive: true });
   await fs.writeFile(getSessionIndexPath(sessionId), JSON.stringify(payload, null, 2), "utf8");
+
+  // Also create in Supabase if orgId is provided
+  if (orgId) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (supabaseUrl && serviceRoleKey) {
+      const supabase = createSupabaseAdminClient(supabaseUrl, serviceRoleKey);
+
+      // Try to insert the session (ignore if it already exists)
+      try {
+        await supabase
+          .from("sessions")
+          .insert({
+            id: sessionId,
+            org_id: orgId,
+            label: "New Session",
+            status: "active",
+            // created_by is nullable, set to null since ownerUserId might not be a valid auth.users id
+          })
+          .select()
+          .single();
+      } catch {
+        // Ignore errors - session might already exist
+        // The filesystem record is the source of truth for ownership
+      }
+    }
+  }
+
   return payload;
 };
 
 export const ensureSessionOwnership = async (
   sessionId: string,
   ownerUserId: string,
-  allowAutocreate: boolean
+  allowAutocreate: boolean,
+  orgId?: string
 ): Promise<SessionOwnership | null> => {
   if (!sessionId || !ownerUserId) return null;
   try {
@@ -66,7 +100,7 @@ export const ensureSessionOwnership = async (
   }
 
   if (!allowAutocreate) return null;
-  return writeSessionOwnership(sessionId, ownerUserId);
+  return writeSessionOwnership(sessionId, ownerUserId, orgId);
 };
 
 

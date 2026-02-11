@@ -4,7 +4,9 @@ import { createSessionCookie } from "@/lib/auth/session";
 export const runtime = "nodejs";
 
 export async function GET(request: Request): Promise<Response> {
-  if (process.env.NODE_ENV === "production" || process.env.ALLOW_DEV_LOGIN !== "1") {
+  // Step 0: STRICT dev-only guard
+  // Only works in NODE_ENV=development with explicit ALLOW_DEV_LOGIN=1
+  if (process.env.NODE_ENV !== "development" || process.env.ALLOW_DEV_LOGIN !== "1") {
     return new Response("Not Found", { status: 404 });
   }
 

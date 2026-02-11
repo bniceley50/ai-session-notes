@@ -17,8 +17,15 @@ export type JobStatusFile = {
 
 const JOB_INDEX_DIR = path.resolve(ARTIFACTS_ROOT, "_index", "jobs");
 
+export const getSessionDir = (sessionId: string): string =>
+  path.resolve(ARTIFACTS_ROOT, "sessions", safePathSegment(sessionId));
+
 export const getSessionJobsDir = (sessionId: string): string =>
-  path.resolve(ARTIFACTS_ROOT, "sessions", safePathSegment(sessionId), "jobs");
+  path.resolve(getSessionDir(sessionId), "jobs");
+
+/** Session-level transcript (shared across jobs so analyze-only can find it) */
+export const getSessionTranscriptPath = (sessionId: string): string =>
+  path.join(getSessionDir(sessionId), "transcript", "latest.txt");
 
 export const getJobDir = (sessionId: string, jobId: string): string =>
   path.resolve(getSessionJobsDir(sessionId), safePathSegment(jobId));

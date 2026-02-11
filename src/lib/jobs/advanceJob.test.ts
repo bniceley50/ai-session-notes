@@ -3,9 +3,10 @@ import { test } from "node:test";
 import { advanceJob, createJob, deleteJob } from "./store.ts";
 
 const practiceId = "practice-test";
+const sessionId = "session-test";
 
 const createFrozenJob = () => {
-  const job = createJob(practiceId);
+  const job = createJob(practiceId, sessionId);
   const future = new Date(Date.now() + 60_000).toISOString();
   job.createdAt = future;
   job.updatedAt = future;

@@ -22,12 +22,22 @@ export const dynamic = "force-dynamic";
 
 const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 const MIME_EXTENSION: Record<string, string> = {
+  // Audio formats (Whisper-native)
   "audio/webm": ".webm",
   "audio/wav": ".wav",
   "audio/x-wav": ".wav",
   "audio/mpeg": ".mp3",
+  "audio/mp3": ".mp3",
   "audio/mp4": ".m4a",
   "audio/x-m4a": ".m4a",
+  "audio/m4a": ".m4a",
+  "audio/x-mpegurl": ".m4a",
+  // Video formats (Whisper accepts mp4/webm/mpeg natively)
+  "video/webm": ".webm",
+  "video/mp4": ".mp4",
+  "video/mpeg": ".mpeg",
+  "video/quicktime": ".mov",
+  "application/octet-stream": ".bin", // Fallback for generic uploads
 };
 
 class ByteLimitTransform extends Transform {
@@ -86,7 +96,12 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     return jsonError(400, "BAD_REQUEST", "Invalid sessionId.");
   }
 
-  const ownership = await ensureSessionOwnership(sessionId, session.sub, isAutocreateAllowed());
+  const ownership = await ensureSessionOwnership(
+    sessionId,
+    session.sub,
+    isAutocreateAllowed(),
+    session.practiceId
+  );
   if (!ownership) {
     return jsonError(404, "NOT_FOUND", "Session not found or not accessible.");
   }
@@ -105,10 +120,13 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
 
   const ct = request.headers.get("content-type") ?? "";
   const base = normalizeMime(ct);
-  // Allow only plain audio/webm or video/webm after stripping codecs; reject everything else.
-  if (!(base === "audio/webm" || base === "video/webm")) {
+
+  // Accept only MIME types explicitly listed in the allowlist (Whisper-compatible formats).
+  const allowedMimes = new Set(Object.keys(MIME_EXTENSION));
+  if (!allowedMimes.has(base)) {
     return jsonError(415, "UNSUPPORTED_MEDIA_TYPE", `Unsupported media type: ${ct}`);
   }
+
   const mime = base;
   const extFromMime = MIME_EXTENSION[mime] ?? ".webm";
 
