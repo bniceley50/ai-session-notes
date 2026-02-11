@@ -18,11 +18,56 @@
  *   - Idempotent — safe to run repeatedly.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 
 const LABELS_PATH = resolve(".", ".github", "labels.json");
+
+// ── Resolve `gh` binary ──────────────────────────────────────────
+// Supports: GH_BIN env var → `gh` on PATH → common install locations.
+function resolveGh() {
+  // 1. Explicit override
+  if (process.env.GH_BIN) {
+    if (!existsSync(process.env.GH_BIN)) {
+      console.error(`GH_BIN points to ${process.env.GH_BIN} but file does not exist.`);
+      process.exit(1);
+    }
+    return `"${process.env.GH_BIN}"`;
+  }
+
+  // 2. Try `gh` on current PATH
+  try {
+    execSync("gh --version", { stdio: "pipe" });
+    return "gh";
+  } catch {
+    // not on PATH — continue
+  }
+
+  // 3. Common install locations (Windows / macOS / Linux)
+  // Use forward slashes — Node resolves them on all platforms.
+  const candidates = [
+    "C:/Program Files/GitHub CLI/gh.exe",
+    "C:/Program Files (x86)/GitHub CLI/gh.exe",
+    "/usr/local/bin/gh",
+    "/opt/homebrew/bin/gh",
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return `"${candidate}"`;
+    }
+  }
+
+  console.error(
+    "gh CLI not found. Either:\n" +
+    "  • Set GH_BIN to the full path of gh.exe\n" +
+    "  • Add GitHub CLI to your PATH\n" +
+    "  • Install: https://cli.github.com",
+  );
+  process.exit(1);
+}
+
+const GH = resolveGh();
 
 // ── Load seed labels ──────────────────────────────────────────────
 let labels;
@@ -38,7 +83,7 @@ console.log(`Syncing ${labels.length} labels...\n`);
 // ── Fetch existing labels from GitHub ─────────────────────────────
 let existing;
 try {
-  const raw = execSync("gh label list --json name,color,description --limit 200", {
+  const raw = execSync(`${GH} label list --json name,color,description --limit 200`, {
     encoding: "utf-8",
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -61,7 +106,7 @@ for (const label of labels) {
     // Create
     try {
       execSync(
-        `gh label create ${quote(name)} --color "${color}" --description ${quote(description)}`,
+        `${GH} label create ${quote(name)} --color "${color}" --description ${quote(description)}`,
         { stdio: "pipe" },
       );
       console.log(`  + created: ${name}`);
@@ -76,7 +121,7 @@ for (const label of labels) {
     // Update
     try {
       execSync(
-        `gh label edit ${quote(name)} --color "${color}" --description ${quote(description)}`,
+        `${GH} label edit ${quote(name)} --color "${color}" --description ${quote(description)}`,
         { stdio: "pipe" },
       );
       console.log(`  ~ updated: ${name}`);
