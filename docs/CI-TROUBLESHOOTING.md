@@ -61,6 +61,7 @@ Check the **step name** in the GitHub Actions log:
 
 - `Type check` — TypeScript error. Run `pnpm tsc --noEmit` locally.
 - `Lint` — ESLint error. Run `pnpm eslint src/` locally.
+- `Validate label seed (strict)` — Label ordering or format error. Run `pnpm labels:check:strict` and re-sort `.github/labels.json` alphabetically by name.
 - `Run Playwright tests` — Actual E2E failure. Download the report artifact.
 
 ---

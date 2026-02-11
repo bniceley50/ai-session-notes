@@ -88,3 +88,40 @@ These labels feed into `.github/release.yml` categories. Must stay aligned with 
 | New export feature | `type:feature`, `feature`, `area:session-ui`, `priority:p1` |
 | Security patch in auth | `type:security`, `security`, `area:auth`, `priority:p0` |
 | Docs-only update | `type:docs`, `area:docs`, `priority:p3` |
+
+## Label seed maintenance
+
+### Source of truth
+
+`.github/labels.json` is the canonical label definition. All label names, colors, and descriptions live there.
+
+### Ordering rule
+
+Labels **must** be sorted alphabetically by `name`. CI enforces this — PRs with unsorted labels will fail the pipeline.
+
+### Validation commands
+
+```bash
+# Quick check (warns on sort issues, fails on structural errors)
+pnpm labels:check
+
+# Strict check (fails on sort issues too — matches CI)
+pnpm labels:check:strict
+```
+
+### Sync to GitHub
+
+After validation passes, push labels to the remote repo:
+
+```bash
+pnpm labels:sync
+```
+
+This creates missing labels and updates changed ones. It never deletes labels that exist on GitHub but aren't in the seed file.
+
+### Update workflow
+
+1. Edit `.github/labels.json` — add/modify labels in alphabetical order.
+2. Run `pnpm labels:check:strict` — fix any errors before committing.
+3. Run `pnpm labels:sync` — push changes to GitHub.
+4. Open a PR and confirm CI passes.
