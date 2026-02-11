@@ -86,10 +86,8 @@ jobs:
       - name: Validate label seed
         run: pnpm labels:check
 
-      # Advisory for now; switch to blocking once labels are sorted and stable.
-      - name: Validate label seed (strict, advisory)
+      - name: Validate label seed (strict)
         run: pnpm labels:check:strict
-        continue-on-error: true
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
