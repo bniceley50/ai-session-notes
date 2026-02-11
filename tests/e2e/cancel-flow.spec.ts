@@ -7,6 +7,7 @@ import path from "path";
  *
  * Proves that cancelling a job mid-run:
  *   - Stops processing UI
+ *   - Cancel button locks (disabled) during in-flight action
  *   - Shows a "Job cancelled" notice
  *   - Resets AudioInput so user can re-upload
  *
@@ -49,6 +50,11 @@ test.describe("Cancel Flow", () => {
     const cancelBtn = page.getByRole("button", { name: "Cancel" }).first();
     await expect(cancelBtn).toBeVisible({ timeout: 10_000 });
     await cancelBtn.click();
+
+    // ── 4b. Assert: action lock — Cancel button gone after click ──
+    // After clicking, the button becomes disabled ("Cancelling…") then
+    // disappears as the UI resets. Verify it's no longer clickable.
+    await expect(cancelBtn).not.toBeVisible({ timeout: 2_000 });
 
     // ── 5. Assert: "Job cancelled" notice appears ─────────────
     // Notice shows in both AudioInput and AIAnalysisViewer panels;

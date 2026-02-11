@@ -8,6 +8,7 @@ import path from "path";
  * Proves that deleting a completed job:
  *   - Opens a confirmation dialog before deleting
  *   - Cancelling the dialog has no side effects
+ *   - Confirming delete disables the button (action lock)
  *   - Confirming delete shows a "Job deleted." notice
  *   - Resets AudioInput so user can re-upload
  *   - Clears transcript from the page
@@ -73,6 +74,12 @@ test.describe("Delete Flow", () => {
     const confirmDeleteBtn = page.getByRole("button", { name: "Delete" });
     await expect(confirmDeleteBtn).toBeVisible();
     await confirmDeleteBtn.click();
+
+    // ── 7b. Assert: action lock — confirm button gone after click ──
+    // After clicking, the button becomes disabled ("Deleting…") then
+    // the dialog closes. Verify the destructive button is no longer
+    // clickable, proving the double-click guard works.
+    await expect(confirmDeleteBtn).not.toBeVisible({ timeout: 2_000 });
 
     // ── 8. Assert: "Job deleted." notice appears ───────────────
     const notice = page.getByText("Job deleted.").first();

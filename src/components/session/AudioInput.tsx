@@ -32,6 +32,8 @@ export function AudioInput({ sessionId }: Props) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -273,10 +275,22 @@ export function AudioInput({ sessionId }: Props) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => { void cancelJob(); setStatus("idle"); setUploadedFilename(""); setSelectedFile(null); }}
-                  className="text-xs text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition"
+                  disabled={isCancelling}
+                  onClick={async () => {
+                    if (isCancelling) return;
+                    setIsCancelling(true);
+                    try {
+                      await cancelJob();
+                      setStatus("idle");
+                      setUploadedFilename("");
+                      setSelectedFile(null);
+                    } finally {
+                      setIsCancelling(false);
+                    }
+                  }}
+                  className="text-xs text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition disabled:opacity-50"
                 >
-                  Cancel
+                  {isCancelling ? "Cancelling…" : "Cancel"}
                 </button>
               </>
             ) : (
@@ -307,8 +321,9 @@ export function AudioInput({ sessionId }: Props) {
                 {(job?.status === "complete" || job?.status === "failed") && (
                   <button
                     type="button"
+                    disabled={isDeleting}
                     onClick={() => setConfirmDeleteOpen(true)}
-                    className="px-4 py-2 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                    className="px-4 py-2 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50"
                   >
                     Delete job
                   </button>
@@ -317,7 +332,7 @@ export function AudioInput({ sessionId }: Props) {
             )}
           </div>
         </div>
-        <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialog open={confirmDeleteOpen} onOpenChange={(open) => { if (!isDeleting) setConfirmDeleteOpen(open); }}>
           <AlertDialogContent size="sm">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete job?</AlertDialogTitle>
@@ -326,17 +341,24 @@ export function AudioInput({ sessionId }: Props) {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 variant="destructive"
-                onClick={() => {
-                  void deleteJob();
-                  setStatus("idle");
-                  setUploadedFilename("");
-                  setSelectedFile(null);
+                disabled={isDeleting}
+                onClick={async () => {
+                  if (isDeleting) return;
+                  setIsDeleting(true);
+                  try {
+                    await deleteJob();
+                    setStatus("idle");
+                    setUploadedFilename("");
+                    setSelectedFile(null);
+                  } finally {
+                    setIsDeleting(false);
+                  }
                 }}
               >
-                Delete
+                {isDeleting ? "Deleting…" : "Delete"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
