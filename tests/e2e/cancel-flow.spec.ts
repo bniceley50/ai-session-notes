@@ -43,11 +43,9 @@ test.describe("Cancel Flow", () => {
     await uploadBtn.click();
 
     // ── 4. Wait for processing to start, then click Cancel ────
-    // After upload, AudioInput enters "processing" state and shows Cancel.
-    // The stub pipeline completes fast, but the 2s poll interval means
-    // the AI Analysis panel also shows a Cancel button during transcription.
-    // We look for either Cancel button and click whichever appears first.
-    const cancelBtn = page.getByRole("button", { name: "Cancel" }).first();
+    // After upload, AudioInput and AI Analysis panels both show Cancel
+    // buttons during processing. We grab whichever appears first.
+    const cancelBtn = page.getByTestId("action-cancel-job").first();
     await expect(cancelBtn).toBeVisible({ timeout: 10_000 });
     await cancelBtn.click();
 

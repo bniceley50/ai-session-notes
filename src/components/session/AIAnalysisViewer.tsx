@@ -266,12 +266,13 @@ export function AIAnalysisViewer({ sessionId }: Props) {
   return (
     <section className="card-base h-full flex flex-col gap-3 min-h-[260px]">
       <PanelHeader
+        testId="panel-header-analysis"
         title="AI Analysis"
         status={
           analysisJob ? (
-            <JobStatusChip status={analysisJob.status as JobStatus} stage={analysisJob.stage as JobStage} />
+            <JobStatusChip status={analysisJob.status as JobStatus} stage={analysisJob.stage as JobStage} testId="status-chip-analysis" />
           ) : transcribeJob ? (
-            <JobStatusChip status={transcribeJob.status} stage={transcribeJob.stage} />
+            <JobStatusChip status={transcribeJob.status} stage={transcribeJob.stage} testId="status-chip-analysis" />
           ) : undefined
         }
         actions={
@@ -279,6 +280,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
             {analysisReady && draft && (
               <>
                 <Button
+                  data-testid="action-transfer-notes"
                   variant="outline"
                   size="xs"
                   onClick={handleTransferToNotes}
@@ -337,7 +339,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
             </Button>
           </div>
         ) : analysisReady && draft ? (
-          <pre className="whitespace-pre-wrap font-sans">{draft}</pre>
+          <pre data-testid="analysis-draft-content" className="whitespace-pre-wrap font-sans">{draft}</pre>
         ) : analysisRunning ? (
           <div className="flex flex-col items-center justify-center h-full gap-2">
             <ProgressBar
@@ -347,6 +349,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
               indeterminate={!analysisJob || analysisJob.progress < 80}
             />
             <Button
+              data-testid="action-cancel-analysis"
               variant="ghost"
               size="xs"
               onClick={() => void cancelAnalysisJob()}
@@ -368,7 +371,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
             </p>
           </div>
         ) : transcriptReady && !analysisJobId ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4">
+          <div data-testid="analysis-ready-prompt" className="flex flex-col items-center justify-center h-full gap-4">
             <p className="text-sm text-slate-500">Transcript ready. Choose a note type and generate.</p>
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Note Type:</label>
@@ -383,6 +386,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
               </select>
             </div>
             <Button
+              data-testid="action-generate-note"
               onClick={handleGenerateNote}
               disabled={starting}
               className="bg-indigo-600 hover:bg-indigo-700 shadow-sm px-6"
@@ -401,6 +405,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
               subtitle=""
             />
             <Button
+              data-testid="action-cancel-job"
               variant="ghost"
               size="xs"
               onClick={() => void cancelJob()}

@@ -68,9 +68,9 @@ test.describe("Core Loop — Happy Path", () => {
     await expect(transcriptText).toBeVisible({ timeout: 30_000 });
 
     // ── 4b. Assert: status chip shows "Complete" ────────────────
-    // After the stub pipeline finishes, at least one JobStatusChip
-    // should display "Complete" in the panel headers.
-    const completeChip = page.getByTestId("job-status-chip").filter({ hasText: "Complete" }).first();
+    // After the stub pipeline finishes, the transcript panel's chip
+    // should display "Complete".
+    const completeChip = page.getByTestId("status-chip-transcript").filter({ hasText: "Complete" });
     await expect(completeChip).toBeVisible({ timeout: 10_000 });
 
     // ── 5. Wait for the "Generate" prompt ────────────────────────
@@ -80,9 +80,7 @@ test.describe("Core Loop — Happy Path", () => {
     await expect(readyText).toBeVisible({ timeout: 30_000 });
 
     // Note type defaults to SOAP — click "Generate SOAP Note"
-    const generateBtn = page.getByRole("button", {
-      name: /Generate SOAP Note/,
-    });
+    const generateBtn = page.getByTestId("action-generate-note");
     await expect(generateBtn).toBeVisible();
     await expect(generateBtn).toBeEnabled();
     // Scroll into view and use a normal click (not force) so Playwright
@@ -98,9 +96,7 @@ test.describe("Core Loop — Happy Path", () => {
     await expect(draftText).toBeVisible({ timeout: 30_000 });
 
     // ── 7. Transfer to Notes ─────────────────────────────────────
-    const transferBtn = page.getByRole("button", {
-      name: "Transfer to Notes",
-    });
+    const transferBtn = page.getByTestId("action-transfer-notes");
     await expect(transferBtn).toBeVisible();
     await transferBtn.scrollIntoViewIfNeeded();
     await transferBtn.click();
@@ -112,7 +108,7 @@ test.describe("Core Loop — Happy Path", () => {
 
     // ── 8. Verify the NoteEditor received the content ────────────
     // The NoteEditor has a <textarea> with the transferred draft.
-    const noteTextarea = page.locator("textarea");
+    const noteTextarea = page.getByTestId("note-editor-textarea");
     await expect(noteTextarea).toBeVisible();
     // Escape regex special chars (parens) in the marker string
     const draftRegex = new RegExp(STUB_DRAFT_MARKER.replace(/[()]/g, "\\$&"));

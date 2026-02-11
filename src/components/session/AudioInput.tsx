@@ -249,8 +249,9 @@ export function AudioInput({ sessionId }: Props) {
     return (
       <section className="card-base h-full flex flex-col gap-4 min-h-[260px]">
         <PanelHeader
+          testId="panel-header-audio"
           title="Audio Input"
-          status={job ? <JobStatusChip status={job.status} stage={job.stage} /> : undefined}
+          status={job ? <JobStatusChip status={job.status} stage={job.stage} testId="status-chip-audio" /> : undefined}
         />
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="text-center">
@@ -278,6 +279,7 @@ export function AudioInput({ sessionId }: Props) {
                 </div>
                 <button
                   type="button"
+                  data-testid="action-cancel-job"
                   disabled={isCancelling}
                   onClick={async () => {
                     if (isCancelling) return;
@@ -324,6 +326,7 @@ export function AudioInput({ sessionId }: Props) {
                 {(job?.status === "complete" || job?.status === "failed") && (
                   <button
                     type="button"
+                    data-testid="action-open-delete-dialog"
                     disabled={isDeleting}
                     onClick={() => setConfirmDeleteOpen(true)}
                     className="px-4 py-2 rounded-lg text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50"
@@ -344,8 +347,9 @@ export function AudioInput({ sessionId }: Props) {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel data-testid="action-cancel-delete-dialog" disabled={isDeleting}>Cancel</AlertDialogCancel>
               <AlertDialogAction
+                data-testid="action-confirm-delete-job"
                 variant="destructive"
                 disabled={isDeleting}
                 onClick={async () => {
@@ -536,6 +540,7 @@ export function AudioInput({ sessionId }: Props) {
                   type="button"
                   onClick={handleSubmit}
                   disabled={status === "uploading"}
+                  data-testid="action-upload-file"
                   className="px-4 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-xs font-semibold text-white shadow-sm transition disabled:opacity-50"
                 >
                   {status === "uploading" ? "Uploading..." : "Upload"}

@@ -3,6 +3,7 @@ import type { JobStage, JobStatus } from "@/lib/jobs/status";
 type Props = {
   status: JobStatus;
   stage?: JobStage;
+  testId?: string;
 };
 
 const STAGE_LABELS: Record<JobStage, string> = {
@@ -47,14 +48,14 @@ const STATUS_STYLES: Record<JobStatus, ChipStyle> = {
   },
 };
 
-export function JobStatusChip({ status, stage }: Props) {
+export function JobStatusChip({ status, stage, testId }: Props) {
   const style = STATUS_STYLES[status];
   const stageLabel = status === "running" && stage ? STAGE_LABELS[stage] : null;
   const label = stageLabel ? `${style.label} \u00b7 ${stageLabel}` : style.label;
 
   return (
     <span
-      data-testid="job-status-chip"
+      data-testid={testId ?? "job-status-chip"}
       className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ${style.bg} ${style.text}`}
     >
       <span

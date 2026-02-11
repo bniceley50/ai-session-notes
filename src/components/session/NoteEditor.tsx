@@ -278,6 +278,7 @@ export function NoteEditor({ sessionId }: Props) {
         {!loading && (
           <>
             <textarea
+              data-testid="note-editor-textarea"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Start typing your note here..."

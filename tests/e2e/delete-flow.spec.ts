@@ -50,7 +50,7 @@ test.describe("Delete Flow", () => {
     await expect(transcriptText).toBeVisible({ timeout: 30_000 });
 
     // ── 5. Click "Delete job" → confirm dialog opens ───────────
-    const deleteBtn = page.getByRole("button", { name: "Delete job" });
+    const deleteBtn = page.getByTestId("action-open-delete-dialog");
     await expect(deleteBtn).toBeVisible({ timeout: 10_000 });
     await deleteBtn.click();
 
@@ -59,7 +59,7 @@ test.describe("Delete Flow", () => {
     await expect(dialogTitle).toBeVisible({ timeout: 3_000 });
 
     // ── 6. Cancel the dialog — nothing should change ─────────
-    const cancelDialogBtn = page.getByRole("button", { name: "Cancel" });
+    const cancelDialogBtn = page.getByTestId("action-cancel-delete-dialog");
     await expect(cancelDialogBtn).toBeVisible();
     await cancelDialogBtn.click();
 
@@ -71,7 +71,7 @@ test.describe("Delete Flow", () => {
     await deleteBtn.click();
     await expect(dialogTitle).toBeVisible({ timeout: 3_000 });
 
-    const confirmDeleteBtn = page.getByRole("button", { name: "Delete" });
+    const confirmDeleteBtn = page.getByTestId("action-confirm-delete-job");
     await expect(confirmDeleteBtn).toBeVisible();
     await confirmDeleteBtn.click();
 
