@@ -8,16 +8,24 @@ type JobRecord = JobStatusFile;
 /** Callback NoteEditor registers so AIAnalysisViewer can push content into it */
 type TransferToNotesCallback = (content: string, noteType?: string) => void;
 
+/** Lightweight notice shown after cancel/delete/error */
+type JobNotice = {
+  type: "cancelled" | "error";
+  message: string;
+};
+
 type SessionJobContextValue = {
   jobId: string | null;
   job: JobRecord | null;
   audioArtifactId: string | null;
+  jobNotice: JobNotice | null;
   setJobId: (id: string | null) => void;
   setAudioArtifactId: (id: string | null) => void;
   startPolling: (url: string) => void;
   stopPolling: () => void;
   /** Cancel the current transcription job (DELETE + reset state) */
   cancelJob: () => Promise<void>;
+  clearJobNotice: () => void;
   /** Register a callback from NoteEditor to receive transferred content */
   onTransferToNotes: (cb: TransferToNotesCallback) => void;
   /** AIAnalysisViewer calls this to push content into NoteEditor */
@@ -37,7 +45,9 @@ export function SessionJobProvider({ sessionId, children }: Props) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobRecord | null>(null);
   const [audioArtifactId, setAudioArtifactId] = useState<string | null>(null);
+  const [jobNotice, setJobNotice] = useState<JobNotice | null>(null);
   const pollRef = useRef<number | null>(null);
+  const noticeTimerRef = useRef<number | null>(null);
   const transferCallbackRef = useRef<TransferToNotesCallback | null>(null);
 
   const stopPolling = () => {
@@ -75,9 +85,31 @@ export function SessionJobProvider({ sessionId, children }: Props) {
     }, POLL_INTERVAL_MS);
   };
 
+  const clearJobNotice = useCallback(() => {
+    setJobNotice(null);
+    if (noticeTimerRef.current !== null) {
+      window.clearTimeout(noticeTimerRef.current);
+      noticeTimerRef.current = null;
+    }
+  }, []);
+
+  const showNotice = useCallback((notice: JobNotice, autoCloseMs = 3000) => {
+    if (noticeTimerRef.current !== null) {
+      window.clearTimeout(noticeTimerRef.current);
+    }
+    setJobNotice(notice);
+    noticeTimerRef.current = window.setTimeout(() => {
+      setJobNotice(null);
+      noticeTimerRef.current = null;
+    }, autoCloseMs);
+  }, []);
+
   useEffect(() => {
     return () => {
       stopPolling();
+      if (noticeTimerRef.current !== null) {
+        window.clearTimeout(noticeTimerRef.current);
+      }
     };
   }, []);
 
@@ -96,11 +128,14 @@ export function SessionJobProvider({ sessionId, children }: Props) {
           method: "DELETE",
           credentials: "include",
         });
+        showNotice({ type: "cancelled", message: "Job cancelled." });
       } catch {
-        // Best-effort — UI is already reset
+        showNotice({ type: "error", message: "Could not cancel job." });
       }
+    } else {
+      showNotice({ type: "cancelled", message: "Job cancelled." });
     }
-  }, [jobId]);
+  }, [jobId, showNotice]);
 
   const onTransferToNotes = useCallback((cb: TransferToNotesCallback) => {
     transferCallbackRef.current = cb;
@@ -114,11 +149,13 @@ export function SessionJobProvider({ sessionId, children }: Props) {
     jobId,
     job,
     audioArtifactId,
+    jobNotice,
     setJobId,
     setAudioArtifactId,
     startPolling,
     stopPolling,
     cancelJob,
+    clearJobNotice,
     onTransferToNotes,
     transferToNotes,
   };
