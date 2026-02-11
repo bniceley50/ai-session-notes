@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "crypto";
 import path from "path";
+import { TID } from "./selectors";
 
 /**
  * Delete-flow E2E test.
@@ -50,7 +51,7 @@ test.describe("Delete Flow", () => {
     await expect(transcriptText).toBeVisible({ timeout: 30_000 });
 
     // ── 5. Click "Delete job" → confirm dialog opens ───────────
-    const deleteBtn = page.getByTestId("action-open-delete-dialog");
+    const deleteBtn = page.getByTestId(TID.action.openDeleteDialog);
     await expect(deleteBtn).toBeVisible({ timeout: 10_000 });
     await deleteBtn.click();
 
@@ -59,7 +60,7 @@ test.describe("Delete Flow", () => {
     await expect(dialogTitle).toBeVisible({ timeout: 3_000 });
 
     // ── 6. Cancel the dialog — nothing should change ─────────
-    const cancelDialogBtn = page.getByTestId("action-cancel-delete-dialog");
+    const cancelDialogBtn = page.getByTestId(TID.action.cancelDeleteDialog);
     await expect(cancelDialogBtn).toBeVisible();
     await cancelDialogBtn.click();
 
@@ -71,7 +72,7 @@ test.describe("Delete Flow", () => {
     await deleteBtn.click();
     await expect(dialogTitle).toBeVisible({ timeout: 3_000 });
 
-    const confirmDeleteBtn = page.getByTestId("action-confirm-delete-job");
+    const confirmDeleteBtn = page.getByTestId(TID.action.confirmDeleteJob);
     await expect(confirmDeleteBtn).toBeVisible();
     await confirmDeleteBtn.click();
 

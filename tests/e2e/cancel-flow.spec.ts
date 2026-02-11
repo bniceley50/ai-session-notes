@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "crypto";
 import path from "path";
+import { TID } from "./selectors";
 
 /**
  * Cancel-flow E2E test.
@@ -45,7 +46,7 @@ test.describe("Cancel Flow", () => {
     // ── 4. Wait for processing to start, then click Cancel ────
     // After upload, AudioInput and AI Analysis panels both show Cancel
     // buttons during processing. We grab whichever appears first.
-    const cancelBtn = page.getByTestId("action-cancel-job").first();
+    const cancelBtn = page.getByTestId(TID.action.cancelJob).first();
     await expect(cancelBtn).toBeVisible({ timeout: 10_000 });
     await cancelBtn.click();
 
