@@ -1,0 +1,111 @@
+name: Feature request
+description: Propose a new feature or improvement
+title: "Feature: <short summary>"
+labels: ["enhancement"]
+assignees: []
+
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What pain point or gap does this address?
+      placeholder: "Currently there is no way to …"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected
+    attributes:
+      label: Who is affected?
+      options:
+        - all users
+        - clinicians only
+        - admin / org owner
+        - developer / CI
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired-outcome
+    attributes:
+      label: Desired outcome
+      description: What should the user be able to do once this ships?
+      placeholder: "Users can …"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: How would you solve it? Include rough UX or technical approach.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you evaluate and why were they ruled out?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Impact areas
+      description: Check all that apply.
+      options:
+        - label: UI / UX
+        - label: API
+        - label: Data model
+        - label: Security / compliance
+        - label: Performance
+        - label: DevEx / tooling
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Suggested priority
+      options:
+        - nice-to-have
+        - should-have
+        - must-have
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Optional. Concrete conditions that must be true for this to be "done".
+      placeholder: |
+        - [ ] User can …
+        - [ ] API returns …
+    validations:
+      required: false
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockups / wireframes
+      description: Optional. Attach images or link to a design.
+    validations:
+      required: false
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks / trade-offs
+      description: Optional. Known downsides, edge cases, or things this does NOT solve.
+    validations:
+      required: false
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: Optional. Explicitly call out what this feature is NOT intended to cover.
+    validations:
+      required: false
