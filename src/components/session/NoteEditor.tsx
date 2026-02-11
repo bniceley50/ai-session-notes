@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { toast } from "sonner";
 import { Save, Trash2 } from "lucide-react";
 import { useSessionJob } from "./SessionJobContext";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,8 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { jsPDF } from "jspdf";
+import { handleExportAction } from "@/lib/export/download";
+import type { ExportAction } from "@/lib/export/download";
 
 type Props = { sessionId: string };
 type NoteType = "soap" | "dap" | "birp" | "girp" | "intake" | "progress" | "freeform";
@@ -155,70 +155,20 @@ export function NoteEditor({ sessionId }: Props) {
     }
   };
 
+  const EXPORT_OPTIONS = ["Copy Text", "Download .txt", "Download .pdf"] as const;
+  const EXPORT_MAP: Record<string, ExportAction> = {
+    "Copy Text": "copy",
+    "Download .txt": "txt",
+    "Download .pdf": "pdf",
+  };
+
   const handleExport = (option: string) => {
-    if (!note || note.trim() === "") {
-      toast.warning("No content available to export yet.");
-      return;
-    }
-
-    switch (option) {
-      case "Copy to Clipboard":
-        navigator.clipboard.writeText(note)
-          .then(() => toast.success("Copied to clipboard"))
-          .catch(() => toast.error("Failed to copy to clipboard"));
-        break;
-
-      case "Download .txt": {
-        const blob = new Blob([note], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${noteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.txt`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        break;
-      }
-
-      case "Download .docx":
-        toast.info("Word document export coming soon");
-        break;
-
-      case "Download .pdf": {
-        try {
-          const doc = new jsPDF();
-          const pageWidth = doc.internal.pageSize.getWidth();
-          const pageHeight = doc.internal.pageSize.getHeight();
-          const margins = 20;
-          const maxWidth = pageWidth - margins * 2;
-          const lineHeight = 6;
-          let currentY = margins;
-
-          // Split text into lines that fit the page width
-          const lines = doc.splitTextToSize(note, maxWidth);
-
-          doc.setFontSize(10);
-
-          // Add lines with pagination
-          for (let i = 0; i < lines.length; i++) {
-            // Check if we need a new page
-            if (currentY + lineHeight > pageHeight - margins) {
-              doc.addPage();
-              currentY = margins;
-            }
-
-            doc.text(lines[i], margins, currentY);
-            currentY += lineHeight;
-          }
-
-          doc.save(`${noteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.pdf`);
-        } catch (error) {
-          toast.error("Failed to generate PDF");
-        }
-        break;
-      }
-    }
+    const action = EXPORT_MAP[option];
+    if (!action) return;
+    handleExportAction(action, note, {
+      filenamePrefix: `${noteType}-note`,
+      sessionId,
+    });
   };
 
   return (
@@ -255,8 +205,9 @@ export function NoteEditor({ sessionId }: Props) {
             <Trash2 /> Clear
           </Button>
           <DropdownButton
-            label="Copy/Export"
-            options={["Copy to Clipboard", "Download .txt", "Download .docx", "Download .pdf"]}
+            data-testid="export-notes"
+            label="Export"
+            options={[...EXPORT_OPTIONS]}
             onChange={handleExport}
             buttonClassName="bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-sm"
           />

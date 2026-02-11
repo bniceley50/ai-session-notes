@@ -22,6 +22,8 @@ type DropdownButtonProps = {
   itemClassName?: string;
   /** Override menu container classes */
   menuClassName?: string;
+  /** data-testid for the trigger button (E2E) */
+  "data-testid"?: string;
 };
 
 /**
@@ -36,6 +38,7 @@ export function DropdownButton({
   buttonClassName,
   itemClassName,
   menuClassName,
+  "data-testid": testId,
 }: DropdownButtonProps) {
   const display = useMemo(() => {
     if (label) return value ? `${label}: ${value}` : label;
@@ -48,6 +51,7 @@ export function DropdownButton({
         <Button
           variant="outline"
           size="sm"
+          data-testid={testId}
           className={cn(
             "gap-1",
             buttonClassName,
