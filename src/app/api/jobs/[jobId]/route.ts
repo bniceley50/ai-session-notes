@@ -1,8 +1,10 @@
 ﻿import { readSessionFromCookieHeader } from "@/lib/auth/session";
 import { jsonError } from "@/lib/api/errors";
 import { safePathSegment } from "@/lib/jobs/artifacts";
-import { readSessionOwnership } from "@/lib/sessions/ownership";
+import { cleanupJobArtifacts } from "@/lib/jobs/cleanup";
 import { readJobStatusById, updateJobStatus } from "@/lib/jobs/status";
+import { deleteJob } from "@/lib/jobs/store";
+import { readSessionOwnership } from "@/lib/sessions/ownership";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,6 +82,12 @@ export async function DELETE(request: Request, context: RouteContext): Promise<R
   if (!updated) {
     return jsonError(404, "NOT_FOUND", "Job not found or not accessible.");
   }
+
+  // Clean up filesystem artifacts + in-memory store entry.
+  // Awaited so cleanup completes before response — safe for serverless runtimes.
+  // cleanupJobArtifacts already swallows errors internally (best-effort).
+  await cleanupJobArtifacts(status.sessionId, jobId);
+  deleteJob(jobId);
 
   return new Response(null, { status: 204 });
 }
