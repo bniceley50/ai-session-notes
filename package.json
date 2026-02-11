@@ -15,7 +15,8 @@
         "test": "tsx --test --import ./tests/setup-env.ts \"src/**/*.test.ts\"",
         "test:jobs": "tsx --test --import ./tests/setup-env.ts src/lib/jobs/*.test.ts",
         "test:watch": "tsx --test --watch --import ./tests/setup-env.ts",
-        "labels:sync": "node tools/sync-labels.mjs"
+        "labels:sync": "node tools/sync-labels.mjs",
+        "labels:check": "node tools/validate-labels.mjs"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.74.0",

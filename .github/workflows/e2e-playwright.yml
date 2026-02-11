@@ -83,6 +83,9 @@ jobs:
       - name: Lint
         run: pnpm eslint src/
 
+      - name: Validate label seed
+        run: pnpm labels:check
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
