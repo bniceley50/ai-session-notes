@@ -4,16 +4,19 @@
  * validate-labels.mjs — Validate .github/labels.json structure.
  *
  * Usage:
- *   node tools/validate-labels.mjs
- *   pnpm labels:check
+ *   node tools/validate-labels.mjs              # warn on unsorted (default)
+ *   node tools/validate-labels.mjs --strict-sort # fail on unsorted
+ *   pnpm labels:check                            # default mode
+ *   pnpm labels:check:strict                     # strict mode
  *
  * Checks:
  *   1. File exists and parses as JSON array.
  *   2. Each label has non-empty name, valid hex color, non-empty description.
  *   3. No duplicate names (case-insensitive).
- *   4. Warns if labels are not sorted alphabetically by name.
+ *   4. Sort order: warn (default) or fail (--strict-sort).
  *
  * Exits non-zero on any validation failure.
+ * To enforce strict sort in CI, switch the workflow step to `pnpm labels:check:strict`.
  */
 
 import { readFileSync } from "node:fs";
@@ -21,6 +24,7 @@ import { resolve } from "node:path";
 
 const LABELS_PATH = resolve(".", ".github", "labels.json");
 const HEX_COLOR = /^[0-9a-fA-F]{6}$/;
+const strictSort = process.argv.includes("--strict-sort");
 
 let raw;
 try {
@@ -96,6 +100,10 @@ if (errors.length > 0) {
 console.log(`OK: ${labels.length} labels validated.`);
 
 if (!isSorted) {
+  if (strictSort) {
+    console.error("FAIL: Labels are not sorted alphabetically by name (--strict-sort).");
+    process.exit(1);
+  }
   console.warn("WARN: Labels are not sorted alphabetically by name. Consider sorting for readability.");
 }
 
