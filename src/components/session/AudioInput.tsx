@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useSessionJob } from "./SessionJobContext";
 import { JobStatusChip } from "./JobStatusChip";
+import { PanelHeader } from "./PanelHeader";
 import { ProgressBar } from "./ProgressBar";
 import {
   AlertDialog,
@@ -247,12 +248,10 @@ export function AudioInput({ sessionId }: Props) {
   if (audioArtifactId && uploadedFilename) {
     return (
       <section className="card-base h-full flex flex-col gap-4 min-h-[260px]">
-        <header className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Audio Input</h3>
-            {job && <JobStatusChip status={job.status} stage={job.stage} />}
-          </div>
-        </header>
+        <PanelHeader
+          title="Audio Input"
+          status={job ? <JobStatusChip status={job.status} stage={job.stage} /> : undefined}
+        />
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="text-center">
             {job?.status === "failed" ? (

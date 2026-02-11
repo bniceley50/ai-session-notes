@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowDown } from "lucide-react";
 import { useSessionJob } from "./SessionJobContext";
 import { JobStatusChip } from "./JobStatusChip";
+import { PanelHeader } from "./PanelHeader";
 import { ProgressBar } from "./ProgressBar";
 import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
@@ -264,52 +265,54 @@ export function AIAnalysisViewer({ sessionId }: Props) {
 
   return (
     <section className="card-base h-full flex flex-col gap-3 min-h-[260px]">
-      <header className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">AI Analysis</h3>
-          {analysisJob ? (
+      <PanelHeader
+        title="AI Analysis"
+        status={
+          analysisJob ? (
             <JobStatusChip status={analysisJob.status as JobStatus} stage={analysisJob.stage as JobStage} />
           ) : transcribeJob ? (
             <JobStatusChip status={transcribeJob.status} stage={transcribeJob.stage} />
-          ) : null}
-        </div>
-        <div className="flex items-center gap-2">
-          {analysisReady && draft && (
-            <>
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={handleTransferToNotes}
-                disabled={transferState === "success"}
-                className={
-                  transferState === "success"
-                    ? "border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                    : "border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
-                }
-                title="Copy AI draft into Structured Notes below"
-              >
-                {transferState === "success" ? (
-                  <>
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                    Transferred!
-                  </>
-                ) : (
-                  <>
-                    <ArrowDown />
-                    Transfer to Notes
-                  </>
+          ) : undefined
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            {analysisReady && draft && (
+              <>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={handleTransferToNotes}
+                  disabled={transferState === "success"}
+                  className={
+                    transferState === "success"
+                      ? "border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                      : "border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                  }
+                  title="Copy AI draft into Structured Notes below"
+                >
+                  {transferState === "success" ? (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      Transferred!
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDown />
+                      Transfer to Notes
+                    </>
+                  )}
+                </Button>
+                {transferState === "error" && transferError && (
+                  <span className="text-xs text-red-600 dark:text-red-400">{transferError}</span>
                 )}
-              </Button>
-              {transferState === "error" && transferError && (
-                <span className="text-xs text-red-600 dark:text-red-400">{transferError}</span>
-              )}
-            </>
-          )}
-          <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .pdf"]} onChange={handleExport} />
-        </div>
-      </header>
+              </>
+            )}
+            <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .pdf"]} onChange={handleExport} />
+          </div>
+        }
+      />
       <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
         {loading ? (
           <p className="text-slate-500">Loading...</p>
