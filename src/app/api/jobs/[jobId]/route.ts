@@ -83,13 +83,11 @@ export async function DELETE(request: Request, context: RouteContext): Promise<R
     return jsonError(404, "NOT_FOUND", "Job not found or not accessible.");
   }
 
-  // Fire-and-forget cleanup: remove filesystem artifacts + in-memory store entry.
-  // Runs after the 204 returns so the client isn't blocked.
-  const sid = status.sessionId;
-  setTimeout(() => {
-    void cleanupJobArtifacts(sid, jobId);
-    deleteJob(jobId);
-  }, 0);
+  // Clean up filesystem artifacts + in-memory store entry.
+  // Awaited so cleanup completes before response — safe for serverless runtimes.
+  // cleanupJobArtifacts already swallows errors internally (best-effort).
+  await cleanupJobArtifacts(status.sessionId, jobId);
+  deleteJob(jobId);
 
   return new Response(null, { status: 204 });
 }
