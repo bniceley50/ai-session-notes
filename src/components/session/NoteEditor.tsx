@@ -15,6 +15,7 @@ import { jsPDF } from "jspdf";
 
 type Props = { sessionId: string };
 type NoteType = "soap" | "dap" | "birp" | "girp" | "intake" | "progress" | "freeform";
+type AutosaveStatus = "idle" | "saving" | "saved" | "error";
 
 const NOTE_TYPES: { value: NoteType; label: string }[] = [
   { value: "soap", label: "SOAP Note" },
@@ -26,6 +27,8 @@ const NOTE_TYPES: { value: NoteType; label: string }[] = [
   { value: "freeform", label: "Freeform" },
 ];
 
+const AUTOSAVE_DELAY_MS = 800;
+
 export function NoteEditor({ sessionId }: Props) {
   const { onTransferToNotes } = useSessionJob();
   const [noteType, setNoteType] = useState<NoteType>("soap");
@@ -34,31 +37,71 @@ export function NoteEditor({ sessionId }: Props) {
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("idle");
+
   // When a transfer just happened, skip the next fetch so it doesn't overwrite
   const skipNextFetchRef = useRef(false);
 
-  // Register callback so AIAnalysisViewer can push content into this editor
-  const handleTransfer = useCallback((content: string, incomingNoteType?: string) => {
-    // Flag: skip the fetch that will fire when noteType changes
-    skipNextFetchRef.current = true;
-    // Switch to the matching note type if valid, otherwise stay on current
-    if (incomingNoteType) {
-      const match = NOTE_TYPES.find((t) => t.value === incomingNoteType);
-      if (match) {
-        setNoteType(match.value);
+  // Tracks the last value that was successfully persisted to the server.
+  // Used to avoid saving when nothing has changed (prevents save loops
+  // after fetch/transfer populate the editor).
+  const lastSavedValueRef = useRef<string>("");
+
+  // Debounce timer for autosave
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Current noteType ref so autosave closure always has latest value
+  const noteTypeRef = useRef<NoteType>(noteType);
+  noteTypeRef.current = noteType;
+
+  // Current note ref so blur handler reads latest value without re-binding
+  const noteRef = useRef<string>(note);
+  noteRef.current = note;
+
+  // ── Shared save helper ────────────────────────────────────────
+  const saveNote = useCallback(
+    async (content: string, type: NoteType): Promise<boolean> => {
+      try {
+        const response = await fetch(
+          `/api/sessions/${encodeURIComponent(sessionId)}/notes`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type, content }),
+          },
+        );
+        if (!response.ok) throw new Error("Save failed");
+        lastSavedValueRef.current = content;
+        return true;
+      } catch {
+        return false;
       }
-    }
-    setNote(content);
-    setLoading(false);
-  }, []);
+    },
+    [sessionId],
+  );
+
+  // ── Register transfer callback ────────────────────────────────
+  const handleTransfer = useCallback(
+    (content: string, incomingNoteType?: string) => {
+      skipNextFetchRef.current = true;
+      if (incomingNoteType) {
+        const match = NOTE_TYPES.find((t) => t.value === incomingNoteType);
+        if (match) setNoteType(match.value);
+      }
+      setNote(content);
+      lastSavedValueRef.current = content;
+      setLoading(false);
+    },
+    [],
+  );
 
   useEffect(() => {
     onTransferToNotes(handleTransfer);
   }, [onTransferToNotes, handleTransfer]);
 
-  // Fetch note when component mounts or noteType changes
+  // ── Fetch note on mount / noteType change ─────────────────────
   useEffect(() => {
-    // If a transfer just set the content, don't overwrite it with a fetch
     if (skipNextFetchRef.current) {
       skipNextFetchRef.current = false;
       return;
@@ -69,17 +112,18 @@ export function NoteEditor({ sessionId }: Props) {
     async function fetchNote() {
       setLoading(true);
       setError("");
+      setAutosaveStatus("idle");
 
       try {
         const response = await fetch(
           `/api/sessions/${encodeURIComponent(sessionId)}/notes?type=${noteType}`,
-          { credentials: "include" }
+          { credentials: "include" },
         );
 
         if (!response.ok) {
-          // If server error (e.g. session not in Supabase yet), just start with empty note
           if (!cancelled) {
             setNote("");
+            lastSavedValueRef.current = "";
             setLoading(false);
           }
           return;
@@ -87,74 +131,120 @@ export function NoteEditor({ sessionId }: Props) {
 
         const data = await response.json();
         if (!cancelled) {
-          setNote(data.content || "");
+          const content = data.content || "";
+          setNote(content);
+          lastSavedValueRef.current = content;
           setLoading(false);
         }
       } catch {
         if (!cancelled) {
-          // Network error — silently start with empty note
           setNote("");
+          lastSavedValueRef.current = "";
           setLoading(false);
         }
       }
     }
 
     fetchNote();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [sessionId, noteType]);
 
+  // ── Autosave debounce effect ──────────────────────────────────
+  useEffect(() => {
+    // Don't autosave during initial load or when content matches server
+    if (loading || note === lastSavedValueRef.current) return;
+
+    // Clear any pending timer
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+
+    autosaveTimerRef.current = setTimeout(async () => {
+      // Double-check: still dirty?
+      if (note === lastSavedValueRef.current) return;
+
+      setAutosaveStatus("saving");
+      const ok = await saveNote(note, noteTypeRef.current);
+      setAutosaveStatus(ok ? "saved" : "error");
+
+      // Reset "Saved" indicator after 2s
+      if (ok) {
+        setTimeout(() => {
+          setAutosaveStatus((prev) => (prev === "saved" ? "idle" : prev));
+        }, 2_000);
+      }
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, [note, loading, saveNote]);
+
+  // ── Cleanup debounce timer on unmount ─────────────────────────
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  // ── Blur handler — immediate save ─────────────────────────────
+  const handleBlur = useCallback(() => {
+    if (loading) return;
+    const current = noteRef.current;
+    if (current === lastSavedValueRef.current) return;
+
+    // Cancel pending debounce — we're saving now
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+
+    setAutosaveStatus("saving");
+    void saveNote(current, noteTypeRef.current).then((ok) => {
+      setAutosaveStatus(ok ? "saved" : "error");
+      if (ok) {
+        setTimeout(() => {
+          setAutosaveStatus((prev) => (prev === "saved" ? "idle" : prev));
+        }, 2_000);
+      }
+    });
+  }, [loading, saveNote]);
+
+  // ── Manual save (button) ──────────────────────────────────────
   const handleSaveDraft = async () => {
     if (loading || saving) return;
+
+    // Cancel pending autosave — manual save takes over
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+
     setSaving(true);
     setError("");
-    try {
-      const response = await fetch(
-        `/api/sessions/${encodeURIComponent(sessionId)}/notes`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: noteType, content: note }),
-        }
-      );
-      if (!response.ok) {
-        throw new Error("Failed to save note");
-      }
-    } catch (err) {
-      setError("Failed to save note");
-    } finally {
-      setSaving(false);
-    }
+    const ok = await saveNote(note, noteType);
+    if (!ok) setError("Failed to save note");
+    setSaving(false);
+    setAutosaveStatus("idle");
   };
 
+  // ── Clear handler ─────────────────────────────────────────────
   const handleClear = async () => {
     setConfirmClearOpen(false);
     setNote("");
     setSaving(true);
     setError("");
-    try {
-      const response = await fetch(
-        `/api/sessions/${encodeURIComponent(sessionId)}/notes`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: noteType, content: "" }),
-        }
-      );
-      if (!response.ok) {
-        throw new Error("Failed to clear note");
-      }
-    } catch (err) {
-      setError("Failed to clear note");
-    } finally {
-      setSaving(false);
-    }
+    const ok = await saveNote("", noteType);
+    if (!ok) setError("Failed to clear note");
+    setSaving(false);
+    setAutosaveStatus("idle");
   };
 
+  // ── Export handler ────────────────────────────────────────────
   const handleExport = (option: string) => {
     if (!note || note.trim() === "") {
       toast.warning("No content available to export yet.");
@@ -195,31 +285,37 @@ export function NoteEditor({ sessionId }: Props) {
           const lineHeight = 6;
           let currentY = margins;
 
-          // Split text into lines that fit the page width
           const lines = doc.splitTextToSize(note, maxWidth);
-
           doc.setFontSize(10);
 
-          // Add lines with pagination
           for (let i = 0; i < lines.length; i++) {
-            // Check if we need a new page
             if (currentY + lineHeight > pageHeight - margins) {
               doc.addPage();
               currentY = margins;
             }
-
             doc.text(lines[i], margins, currentY);
             currentY += lineHeight;
           }
 
           doc.save(`${noteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.pdf`);
-        } catch (error) {
+        } catch {
           toast.error("Failed to generate PDF");
         }
         break;
       }
     }
   };
+
+  // ── Autosave status label ─────────────────────────────────────
+  const autosaveLabel = (() => {
+    if (saving) return "Saving...";
+    switch (autosaveStatus) {
+      case "saving": return "Saving...";
+      case "saved": return "Saved";
+      case "error": return "Save failed";
+      default: return null;
+    }
+  })();
 
   return (
     <section className="card-base h-full flex flex-col gap-4 col-span-3">
@@ -281,12 +377,23 @@ export function NoteEditor({ sessionId }: Props) {
               data-testid="note-editor-textarea"
               value={note}
               onChange={(e) => setNote(e.target.value)}
+              onBlur={handleBlur}
               placeholder="Start typing your note here..."
               rows={10}
               className="flex-1 min-h-[200px] resize-y rounded-lg bg-slate-50 dark:bg-slate-900 p-4 text-sm leading-relaxed text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:outline-none"
             />
-            {saving && (
-              <p className="mt-2 text-xs text-slate-500">Saving...</p>
+            {autosaveLabel && (
+              <p
+                className={`mt-2 text-xs ${
+                  autosaveStatus === "error"
+                    ? "text-red-500 dark:text-red-400"
+                    : autosaveStatus === "saved"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-slate-500"
+                }`}
+              >
+                {autosaveLabel}
+              </p>
             )}
           </>
         )}
