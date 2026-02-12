@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSessionCookie } from "@/lib/auth/session";
+import { defaultPracticeId } from "@/lib/config";
 
 export const runtime = "nodejs";
 
@@ -46,13 +47,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   // Mint our own app-level session cookie
-  const practiceId = process.env.DEFAULT_PRACTICE_ID;
-  if (!practiceId) {
-    return NextResponse.json(
-      { error: "Server misconfigured: missing DEFAULT_PRACTICE_ID" },
-      { status: 500 },
-    );
-  }
+  const practiceId = defaultPracticeId();
 
   const sessionCookie = await createSessionCookie({
     sub: user.id,

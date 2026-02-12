@@ -5,16 +5,16 @@ import { getAudioFilePath, getSessionAudioDir, readAudioMetadata } from "@/lib/j
 import { splitAudioIntoChunks, cleanupChunks } from "@/lib/jobs/ffmpeg";
 import { stitchTranscripts } from "@/lib/jobs/stitch";
 import { withTimeout } from "@/lib/jobs/withTimeout";
+import { openaiApiKey, aiWhisperChunkTimeoutMs } from "@/lib/config";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: openaiApiKey(),
 });
 
 /** Files larger than 24MB are routed through chunked transcription */
 export const CHUNK_THRESHOLD = 24 * 1024 * 1024; // 24 MB
 
-const WHISPER_CHUNK_TIMEOUT_MS =
-  Number(process.env.AI_WHISPER_CHUNK_TIMEOUT_MS) || 120_000;
+const WHISPER_CHUNK_TIMEOUT_MS = aiWhisperChunkTimeoutMs();
 
 export type TranscriptionResult = {
   text: string;

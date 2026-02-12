@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { anthropicApiKey } from "@/lib/config";
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: anthropicApiKey(),
 });
 
 export type ClinicalNoteType = "soap" | "dap" | "birp" | "girp" | "intake" | "progress";
