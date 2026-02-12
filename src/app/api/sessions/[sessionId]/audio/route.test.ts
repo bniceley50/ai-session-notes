@@ -132,7 +132,7 @@ describe("POST /api/sessions/[sessionId]/audio", () => {
     assert.equal(res.status, 200, `Expected 200, got ${res.status}: ${await res.clone().text()}`);
   });
 
-  test("video/mp4 → 415 (not in allowlist)", async () => {
+  test("video/mp4 → 200 (Whisper-compatible video format)", async () => {
     const sessionId = "sess-audio-vid";
     await writeSessionOwnership(sessionId, "user-alice");
 
@@ -142,7 +142,7 @@ describe("POST /api/sessions/[sessionId]/audio", () => {
       filename: "recording.mp4",
     });
     const res = await POST(request, context);
-    assert.equal(res.status, 415);
+    assert.equal(res.status, 200, `Expected 200, got ${res.status}: ${await res.clone().text()}`);
   });
 
   test("audio/webm;codecs=opus (Chrome MediaRecorder) → 200", async () => {
