@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
 import { SessionJobProvider } from "@/components/session/SessionJobContext";
 import { AudioInput } from "@/components/session/AudioInput";
 import { TranscriptViewer } from "@/components/session/TranscriptViewer";
@@ -30,6 +31,10 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
           </h1>
           <p className="mt-1 text-xs font-mono text-slate-500">ID: {decodedSessionId}</p>
         </div>
+        <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          Session artifacts auto-delete in 24 hours.
+        </p>
       </div>
 
       {/* WORKSPACE — Takes ~75-80% of height */}
