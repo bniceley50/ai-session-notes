@@ -16,6 +16,16 @@ export async function GET(request: Request): Promise<Response> {
   const code = url.searchParams.get("code");
   const origin = url.origin;
 
+  // Supabase may redirect with error params instead of a code
+  const errorParam = url.searchParams.get("error");
+  if (errorParam) {
+    const desc = url.searchParams.get("error_description") ?? errorParam;
+    console.error("[auth/callback] Supabase error redirect:", errorParam, desc);
+    return NextResponse.redirect(
+      new URL(`/login?error=missing_code&error_description=${encodeURIComponent(desc)}`, origin),
+    );
+  }
+
   if (!code) {
     return NextResponse.redirect(new URL("/login?error=missing_code", origin));
   }
@@ -25,6 +35,7 @@ export async function GET(request: Request): Promise<Response> {
   // Exchange the PKCE code for a Supabase session
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
   if (exchangeError) {
+    console.error("[auth/callback] Exchange error:", exchangeError.message);
     return NextResponse.redirect(new URL("/login?error=exchange_failed", origin));
   }
 
