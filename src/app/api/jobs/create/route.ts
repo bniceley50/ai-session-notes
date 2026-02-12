@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { readSessionFromCookieHeader } from "@/lib/auth/session";
 import { jsonError } from "@/lib/api/errors";
+import { requireSessionOwner } from "@/lib/api/requireSessionOwner";
 import { safePathSegment } from "@/lib/jobs/artifacts";
 import { readAudioMetadata } from "@/lib/jobs/audio";
 import { runJobPipeline, type PipelineMode } from "@/lib/jobs/pipeline";
 import type { ClinicalNoteType } from "@/lib/jobs/claude";
 import { createJob } from "@/lib/jobs/store";
-import { readSessionOwnership } from "@/lib/sessions/ownership";
 import {
   getJobDir,
   getJobTranscriptPath,
@@ -26,11 +25,7 @@ export const dynamic = "force-dynamic";
 const MAX_TEXT_LENGTH = 50_000;
 
 export async function POST(request: Request): Promise<Response> {
-  const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
-  if (!session) {
-    return jsonError(401, "UNAUTHENTICATED", "Please sign in to continue.");
-  }
-
+  // ── Parse payload first (sessionId is in the body, not URL) ──
   let payload: {
     sessionId?: unknown;
     audioArtifactId?: unknown;
@@ -44,7 +39,17 @@ export async function POST(request: Request): Promise<Response> {
     payload = {};
   }
 
-  const sessionId = typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
+  const sessionIdRaw = typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
+  if (!sessionIdRaw) {
+    return jsonError(400, "BAD_REQUEST", "sessionId is required.");
+  }
+
+  // ── Auth: shared session ownership check ─────────────────────
+  const auth = await requireSessionOwner(request, sessionIdRaw);
+  if (!auth.ok) return auth.response;
+
+  const { sessionId, practiceId } = auth;
+
   const audioArtifactId =
     typeof payload.audioArtifactId === "string" ? payload.audioArtifactId.trim() : "";
   const transcriptText =
@@ -57,22 +62,6 @@ export async function POST(request: Request): Promise<Response> {
     typeof payload.noteType === "string" && VALID_NOTE_TYPES.includes(payload.noteType as ClinicalNoteType)
       ? (payload.noteType as ClinicalNoteType)
       : "soap";
-
-  // ── Validate session ─────────────────────────────────────────
-  if (!sessionId) {
-    return jsonError(400, "BAD_REQUEST", "sessionId is required.");
-  }
-
-  try {
-    safePathSegment(sessionId);
-  } catch {
-    return jsonError(400, "BAD_REQUEST", "Invalid sessionId.");
-  }
-
-  const ownership = await readSessionOwnership(sessionId);
-  if (!ownership || ownership.ownerUserId !== session.sub) {
-    return jsonError(404, "NOT_FOUND", "Session not found or not accessible.");
-  }
 
   // ── Determine input mode: audio vs. text ─────────────────────
   const isTextMode = transcriptText.length > 0;
@@ -149,7 +138,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    createJob(session.practiceId, sessionId, jobId);
+    createJob(practiceId, sessionId, jobId);
   } catch {
     // Best-effort compatibility with legacy job routes.
   }

@@ -1,9 +1,8 @@
 import fs from "node:fs/promises";
 import { createReadStream } from "node:fs";
-import { readSessionFromCookieHeader } from "@/lib/auth/session";
 import { jsonError } from "@/lib/api/errors";
+import { requireSessionOwner } from "@/lib/api/requireSessionOwner";
 import { safePathSegment } from "@/lib/jobs/artifacts";
-import { readSessionOwnership } from "@/lib/sessions/ownership";
 import { getAudioFilePath, readAudioMetadata } from "@/lib/jobs/audio";
 
 export const runtime = "nodejs";
@@ -14,29 +13,23 @@ type RouteContext = {
 };
 
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
-  const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
-  if (!session) {
-    return jsonError(401, "UNAUTHENTICATED", "Please sign in to continue.");
-  }
-
   const { sessionId: sessionIdParam, artifactId: artifactIdParam } = await context.params;
-  const sessionId = typeof sessionIdParam === "string" ? sessionIdParam.trim() : "";
-  const artifactId = typeof artifactIdParam === "string" ? artifactIdParam.trim() : "";
 
-  if (!sessionId || !artifactId) {
-    return jsonError(400, "BAD_REQUEST", "sessionId and artifactId required.");
+  // ── Auth: shared session ownership check ─────────────────────
+  const auth = await requireSessionOwner(request, sessionIdParam);
+  if (!auth.ok) return auth.response;
+
+  const { sessionId } = auth;
+
+  const artifactId = typeof artifactIdParam === "string" ? artifactIdParam.trim() : "";
+  if (!artifactId) {
+    return jsonError(400, "BAD_REQUEST", "artifactId required.");
   }
 
   try {
-    safePathSegment(sessionId);
     safePathSegment(artifactId);
   } catch {
-    return jsonError(400, "BAD_REQUEST", "Invalid path segment.");
-  }
-
-  const ownership = await readSessionOwnership(sessionId);
-  if (!ownership || ownership.ownerUserId !== session.sub) {
-    return jsonError(404, "NOT_FOUND", "Audio artifact not found.");
+    return jsonError(400, "BAD_REQUEST", "Invalid artifactId.");
   }
 
   const meta = await readAudioMetadata(sessionId, artifactId);

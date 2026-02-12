@@ -77,8 +77,8 @@ const serializeCookie = (cookie: { name: string; value: string; options: CookieO
 };
 
 const toSessionPayload = (payload: Record<string, unknown>): SessionPayload | null => {
-  if (typeof payload.sub !== "string") return null;
-  if (typeof payload.practiceId !== "string") return null;
+  if (typeof payload.sub !== "string" || !payload.sub) return null;
+  if (typeof payload.practiceId !== "string" || !payload.practiceId) return null;
   if (typeof payload.role !== "string") return null;
   if (typeof payload.iat !== "number") return null;
   if (typeof payload.exp !== "number") return null;
