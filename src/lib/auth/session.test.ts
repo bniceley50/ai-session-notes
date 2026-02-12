@@ -110,3 +110,54 @@ test("token signed with wrong secret is rejected", async () => {
   const payload = await readSessionFromCookieHeader(cookieHeader);
   assert.equal(payload, null, "wrong-secret token must return null");
 });
+
+// ---------------------------------------------------------------------------
+// Malformed claims → null (toSessionPayload rejects empty / invalid claims)
+// ---------------------------------------------------------------------------
+
+const signMalformed = async (claims: Record<string, unknown>): Promise<string> => {
+  const secret = encoder.encode(TEST_SECRET);
+  const now = Math.floor(Date.now() / 1000);
+  const token = await new SignJWT(claims)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt(now)
+    .setExpirationTime(now + 3600)
+    .sign(secret);
+  return `${SESSION_COOKIE_NAME}=${token}`;
+};
+
+test("empty sub claim → null", async () => {
+  const cookie = await signMalformed({ sub: "", practiceId: "p", role: "clinician" });
+  const payload = await readSessionFromCookieHeader(cookie);
+  assert.equal(payload, null, "empty sub must be rejected");
+});
+
+test("empty practiceId claim → null", async () => {
+  const cookie = await signMalformed({ sub: "user-1", practiceId: "", role: "clinician" });
+  const payload = await readSessionFromCookieHeader(cookie);
+  assert.equal(payload, null, "empty practiceId must be rejected");
+});
+
+test("missing practiceId claim → null", async () => {
+  const cookie = await signMalformed({ sub: "user-1", role: "clinician" });
+  const payload = await readSessionFromCookieHeader(cookie);
+  assert.equal(payload, null, "missing practiceId must be rejected");
+});
+
+test("invalid role claim → null", async () => {
+  const cookie = await signMalformed({ sub: "user-1", practiceId: "p", role: "superadmin" });
+  const payload = await readSessionFromCookieHeader(cookie);
+  assert.equal(payload, null, "invalid role must be rejected");
+});
+
+test("missing role claim → null", async () => {
+  const cookie = await signMalformed({ sub: "user-1", practiceId: "p" });
+  const payload = await readSessionFromCookieHeader(cookie);
+  assert.equal(payload, null, "missing role must be rejected");
+});
+
+test("missing sub claim → null", async () => {
+  const cookie = await signMalformed({ practiceId: "p", role: "clinician" });
+  const payload = await readSessionFromCookieHeader(cookie);
+  assert.equal(payload, null, "missing sub must be rejected");
+});

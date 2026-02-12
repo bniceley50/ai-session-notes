@@ -6,10 +6,8 @@ import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { pipeline } from "node:stream/promises";
-import { readSessionFromCookieHeader } from "@/lib/auth/session";
 import { jsonError } from "@/lib/api/errors";
-import { ensureSessionOwnership } from "@/lib/sessions/ownership";
-import { safePathSegment } from "@/lib/jobs/artifacts";
+import { requireSessionOwner } from "@/lib/api/requireSessionOwner";
 import {
   getSessionAudioDir,
   sanitizeOriginalName,
@@ -81,31 +79,14 @@ type RouteContext = {
 
 export async function POST(request: Request, context: RouteContext): Promise<Response> {
   const { sessionId: sessionIdParam } = await context.params;
-  const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
-  if (!session) {
-    return jsonError(401, "UNAUTHENTICATED", "Please sign in to continue.");
-  }
 
-  const sessionId = typeof sessionIdParam === "string" ? sessionIdParam.trim() : "";
-  if (!sessionId) {
-    return jsonError(400, "BAD_REQUEST", "sessionId required.");
-  }
+  // ── Auth: shared session ownership check ─────────────────────
+  const auth = await requireSessionOwner(request, sessionIdParam, {
+    allowAutocreate: isAutocreateAllowed(),
+  });
+  if (!auth.ok) return auth.response;
 
-  try {
-    safePathSegment(sessionId);
-  } catch {
-    return jsonError(400, "BAD_REQUEST", "Invalid sessionId.");
-  }
-
-  const ownership = await ensureSessionOwnership(
-    sessionId,
-    session.sub,
-    isAutocreateAllowed(),
-    session.practiceId
-  );
-  if (!ownership) {
-    return jsonError(404, "NOT_FOUND", "Session not found or not accessible.");
-  }
+  const { sessionId } = auth;
 
   const contentLength = request.headers.get("content-length");
   if (contentLength) {
