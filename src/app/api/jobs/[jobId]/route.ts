@@ -1,10 +1,8 @@
-﻿import { readSessionFromCookieHeader } from "@/lib/auth/session";
+import { requireJobOwner } from "@/lib/api/requireJobOwner";
 import { jsonError } from "@/lib/api/errors";
-import { safePathSegment } from "@/lib/jobs/artifacts";
 import { cleanupJobArtifacts } from "@/lib/jobs/cleanup";
 import { readJobStatusById, updateJobStatus } from "@/lib/jobs/status";
 import { deleteJob } from "@/lib/jobs/store";
-import { readSessionOwnership } from "@/lib/sessions/ownership";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,29 +13,12 @@ type RouteContext = {
 
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
   const { jobId: jobIdParam } = await context.params;
-  const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
-  if (!session) {
-    return jsonError(401, "UNAUTHENTICATED", "Please sign in to continue.");
-  }
 
-  const jobId = typeof jobIdParam === "string" ? jobIdParam.trim() : "";
-  if (!jobId) {
-    return jsonError(400, "BAD_REQUEST", "jobId required.");
-  }
+  const auth = await requireJobOwner(request, jobIdParam);
+  if (!auth.ok) return auth.response;
 
-  try {
-    safePathSegment(jobId);
-  } catch {
-    return jsonError(400, "BAD_REQUEST", "Invalid jobId.");
-  }
-
-  const status = await readJobStatusById(jobId);
+  const status = await readJobStatusById(auth.jobId);
   if (!status) {
-    return jsonError(404, "NOT_FOUND", "Job not found or not accessible.");
-  }
-
-  const ownership = await readSessionOwnership(status.sessionId);
-  if (!ownership || ownership.ownerUserId !== session.sub) {
     return jsonError(404, "NOT_FOUND", "Job not found or not accessible.");
   }
 
@@ -46,33 +27,16 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
 
 export async function DELETE(request: Request, context: RouteContext): Promise<Response> {
   const { jobId: jobIdParam } = await context.params;
-  const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
-  if (!session) {
-    return jsonError(401, "UNAUTHENTICATED", "Please sign in to continue.");
-  }
 
-  const jobId = typeof jobIdParam === "string" ? jobIdParam.trim() : "";
-  if (!jobId) {
-    return jsonError(400, "BAD_REQUEST", "jobId required.");
-  }
+  const auth = await requireJobOwner(request, jobIdParam);
+  if (!auth.ok) return auth.response;
 
-  try {
-    safePathSegment(jobId);
-  } catch {
-    return jsonError(400, "BAD_REQUEST", "Invalid jobId.");
-  }
-
-  const status = await readJobStatusById(jobId);
+  const status = await readJobStatusById(auth.jobId);
   if (!status) {
     return jsonError(404, "NOT_FOUND", "Job not found or not accessible.");
   }
 
-  const ownership = await readSessionOwnership(status.sessionId);
-  if (!ownership || ownership.ownerUserId !== session.sub) {
-    return jsonError(404, "NOT_FOUND", "Job not found or not accessible.");
-  }
-
-  const updated = await updateJobStatus(jobId, {
+  const updated = await updateJobStatus(auth.jobId, {
     status: "deleted",
     stage: "upload",
     progress: 0,
@@ -86,11 +50,8 @@ export async function DELETE(request: Request, context: RouteContext): Promise<R
   // Clean up filesystem artifacts + in-memory store entry.
   // Awaited so cleanup completes before response — safe for serverless runtimes.
   // cleanupJobArtifacts already swallows errors internally (best-effort).
-  await cleanupJobArtifacts(status.sessionId, jobId);
-  deleteJob(jobId);
+  await cleanupJobArtifacts(auth.sessionId, auth.jobId);
+  deleteJob(auth.jobId);
 
   return new Response(null, { status: 204 });
 }
-
-
-

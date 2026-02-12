@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
-import { readJobIndex, getJobDraftPath } from "@/lib/jobs/status";
+import { requireJobOwner } from "@/lib/api/requireJobOwner";
+import { getJobDraftPath } from "@/lib/jobs/status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,16 +9,13 @@ type RouteContext = {
   params: Promise<{ jobId: string }>;
 };
 
-export async function GET(_request: Request, context: RouteContext): Promise<Response> {
-  const { jobId } = await context.params;
+export async function GET(request: Request, context: RouteContext): Promise<Response> {
+  const { jobId: jobIdParam } = await context.params;
 
-  // Look up the job to get sessionId
-  const index = await readJobIndex(jobId);
-  if (!index) {
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
-  }
+  const auth = await requireJobOwner(request, jobIdParam);
+  if (!auth.ok) return auth.response;
 
-  const draftPath = getJobDraftPath(index.sessionId, jobId);
+  const draftPath = getJobDraftPath(auth.sessionId, auth.jobId);
 
   try {
     const content = await fs.readFile(draftPath, "utf8");
@@ -29,6 +26,9 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
       },
     });
   } catch {
-    return NextResponse.json({ error: "Draft not found" }, { status: 404 });
+    return new Response(
+      JSON.stringify({ error: { code: "NOT_FOUND", message: "Draft not found." } }),
+      { status: 404, headers: { "Content-Type": "application/json" } },
+    );
   }
 }
