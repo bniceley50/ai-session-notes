@@ -59,17 +59,21 @@ export const writeSessionOwnership = async (
     if (url && key) {
       const supabase = createSupabaseAdminClient(url, key);
 
-      // Try to insert the session (ignore if it already exists)
+      // Try to insert the session (ignore if it already exists).
+      // Pass ownerUserId as created_by — when the user authenticated via
+      // OAuth this is their auth.users id. For dev-login the FK to
+      // auth.users will fail (not a real UUID), which is caught below.
       try {
+        const sessionRow: Record<string, unknown> = {
+          id: sessionId,
+          org_id: orgId,
+          label: "New Session",
+          status: "active",
+          created_by: ownerUserId,
+        };
         await supabase
           .from("sessions")
-          .insert({
-            id: sessionId,
-            org_id: orgId,
-            label: "New Session",
-            status: "active",
-            // created_by is nullable, set to null since ownerUserId might not be a valid auth.users id
-          })
+          .insert(sessionRow)
           .select()
           .single();
       } catch {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api/errors";
-import { requireSessionOwner } from "@/lib/api/requireSessionOwner";
+import { requireDualAuth } from "@/lib/api/requireDualAuth";
 import { loadNote, saveNote, type NoteType } from "@/lib/supabase/notes";
 
 export const runtime = "nodejs";
@@ -26,16 +26,16 @@ type RouteContext = {
 /**
  * GET /api/sessions/{sessionId}/notes?type=soap
  * Load the most recent note for this session + note type.
- * Auth: requireSessionOwner (cookie → JWT → sessionOwnership → userId).
+ * Auth: dual-auth (app JWT + Supabase session consistency check).
  */
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
   const { sessionId: sessionIdParam } = await context.params;
 
-  // ── Auth: shared session ownership check ─────────────────────
-  const auth = await requireSessionOwner(request, sessionIdParam);
+  // ── Auth: dual-auth (app JWT + Supabase session when available) ──
+  const auth = await requireDualAuth(request, sessionIdParam);
   if (!auth.ok) return auth.response;
 
-  const { sessionId, practiceId } = auth;
+  const { sessionId, practiceId, supabaseClient } = auth;
 
   // If sessionId isn't a valid UUID, no notes can exist yet — return empty
   if (!UUID_RE.test(sessionId)) {
@@ -53,7 +53,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   const orgId = practiceId;
 
   try {
-    const note = await loadNote(sessionId, orgId, noteType);
+    const note = await loadNote(sessionId, orgId, noteType, supabaseClient);
 
     if (!note) {
       return NextResponse.json({ content: "" }, { status: 200 });
@@ -74,17 +74,17 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
 /**
  * POST /api/sessions/{sessionId}/notes
  * Save (upsert) a note for this session.
- * Auth: requireSessionOwner (cookie → JWT → sessionOwnership → userId).
+ * Auth: dual-auth (app JWT + Supabase session consistency check).
  * Body: { type: "soap" | "dap" | "birp" | "freeform", content: string }
  */
 export async function POST(request: Request, context: RouteContext): Promise<Response> {
   const { sessionId: sessionIdParam } = await context.params;
 
-  // ── Auth: shared session ownership check ─────────────────────
-  const auth = await requireSessionOwner(request, sessionIdParam);
+  // ── Auth: dual-auth (app JWT + Supabase session when available) ──
+  const auth = await requireDualAuth(request, sessionIdParam);
   if (!auth.ok) return auth.response;
 
-  const { sessionId, practiceId } = auth;
+  const { sessionId, userId, practiceId, supabaseClient } = auth;
 
   // Reject non-UUID sessionIds early (Supabase column is UUID type)
   if (!UUID_RE.test(sessionId)) {
@@ -114,7 +114,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   const orgId = practiceId;
 
   try {
-    const note = await saveNote(sessionId, orgId, noteType, content);
+    const note = await saveNote(sessionId, orgId, noteType, content, supabaseClient, userId);
 
     return NextResponse.json({
       id: note.id,
