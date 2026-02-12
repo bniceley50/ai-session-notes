@@ -18,6 +18,8 @@ import {
 
 type Props = { sessionId: string };
 
+type InputMode = "audio" | "text";
+
 type UploadResponse = {
   artifactId: string;
   filename: string;
@@ -25,6 +27,14 @@ type UploadResponse = {
   bytes: number;
 };
 
+type CreateJobResponse = {
+  jobId: string;
+  sessionId: string;
+  statusUrl: string;
+};
+
+/** Character limit for pasted text summaries (matches API) */
+const MAX_TEXT_LENGTH = 50_000;
 
 export function AudioInput({ sessionId }: Props) {
   const { audioArtifactId, setAudioArtifactId, setJobId, startPolling, job, cancelJob, deleteJob, jobNotice, clearJobNotice } = useSessionJob();
@@ -37,6 +47,13 @@ export function AudioInput({ sessionId }: Props) {
   const [isCancelling, setIsCancelling] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Input mode toggle
+  const [inputMode, setInputMode] = useState<InputMode>("audio");
+
+  // Text summary state
+  const [textSummary, setTextSummary] = useState("");
+  const [textSubmitted, setTextSubmitted] = useState(false);
+
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -45,12 +62,6 @@ export function AudioInput({ sessionId }: Props) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
-
-  type CreateJobResponse = {
-    jobId: string;
-    sessionId: string;
-    statusUrl: string;
-  };
 
   /** After audio upload succeeds, auto-create a job and start polling so
    *  TranscriptViewer populates without requiring a separate button click. */
@@ -77,6 +88,39 @@ export function AudioInput({ sessionId }: Props) {
     } catch (err) {
       console.error("Auto-start job error:", err);
       setStatus("idle");
+    }
+  };
+
+  /** Submit text summary — creates a job with transcriptText, skipping Whisper */
+  const submitTextSummary = async () => {
+    const trimmed = textSummary.trim();
+    if (!trimmed) return;
+
+    setStatus("processing");
+    setError("");
+    clearJobNotice();
+
+    try {
+      const response = await fetch("/api/jobs/create", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, transcriptText: trimmed }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(body || "Failed to create job");
+      }
+
+      const jobData = (await response.json()) as CreateJobResponse;
+      setJobId(jobData.jobId);
+      setTextSubmitted(true);
+      startPolling(jobData.statusUrl);
+      setStatus("idle");
+    } catch {
+      setStatus("error");
+      setError("Failed to submit text. Please try again.");
     }
   };
 
@@ -160,7 +204,7 @@ export function AudioInput({ sessionId }: Props) {
       timerRef.current = window.setInterval(() => {
         setRecordingTime((prev) => prev + 1);
       }, 1000);
-    } catch (err) {
+    } catch {
       setError("Failed to access microphone. Please check permissions.");
     }
   };
@@ -244,13 +288,26 @@ export function AudioInput({ sessionId }: Props) {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // ── Already uploaded / processing state ──────────────────────
-  if (audioArtifactId && uploadedFilename) {
+  const resetAllState = () => {
+    setAudioArtifactId(null);
+    setUploadedFilename("");
+    setTextSubmitted(false);
+    setTextSummary("");
+  };
+
+  // True when we have an active/completed submission (audio or text)
+  const hasSubmission = (audioArtifactId && uploadedFilename) || textSubmitted;
+
+  // ── Already submitted (audio or text) / processing state ─────
+  if (hasSubmission) {
+    const inputLabel = textSubmitted ? "Text summary submitted" : "Audio uploaded";
+    const inputDetail = textSubmitted ? "Text summary" : uploadedFilename;
+
     return (
       <section className="card-base h-full flex flex-col gap-4 min-h-[260px]">
         <PanelHeader
           testId="panel-header-audio"
-          title="Audio Input"
+          title="Session Input"
           status={job ? <JobStatusChip status={job.status} stage={job.stage} testId="status-chip-audio" /> : undefined}
         />
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
@@ -272,8 +329,8 @@ export function AudioInput({ sessionId }: Props) {
                 <div className="flex justify-center mb-4">
                   <ProgressBar
                     progress={job?.progress ?? 0}
-                    stage={job?.stage ?? "transcribe"}
-                    label="Processing audio"
+                    stage={job?.stage ?? (textSubmitted ? "draft" : "transcribe")}
+                    label={textSubmitted ? "Generating note" : "Processing audio"}
                     indeterminate={!job || job.progress < 40}
                   />
                 </div>
@@ -287,15 +344,14 @@ export function AudioInput({ sessionId }: Props) {
                     try {
                       await cancelJob();
                       setStatus("idle");
-                      setUploadedFilename("");
-                      setSelectedFile(null);
+                      resetAllState();
                     } finally {
                       setIsCancelling(false);
                     }
                   }}
                   className="text-xs text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition disabled:opacity-50"
                 >
-                  {isCancelling ? "Cancelling…" : "Cancel"}
+                  {isCancelling ? "Cancelling\u2026" : "Cancel"}
                 </button>
               </>
             ) : (
@@ -306,22 +362,19 @@ export function AudioInput({ sessionId }: Props) {
                   </svg>
                 </div>
                 <p className="text-sm font-semibold text-green-700 dark:text-green-400 mb-1">
-                  Audio uploaded
+                  {inputLabel}
                 </p>
               </>
             )}
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 truncate max-w-[200px]">{uploadedFilename}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 truncate max-w-[200px]">{inputDetail}</p>
             {status !== "processing" && (
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setAudioArtifactId(null);
-                    setUploadedFilename("");
-                  }}
+                  onClick={resetAllState}
                   className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
                 >
-                  Upload Different File
+                  Start Over
                 </button>
                 {(job?.status === "complete" || job?.status === "failed") && (
                   <button
@@ -358,14 +411,13 @@ export function AudioInput({ sessionId }: Props) {
                   try {
                     await deleteJob();
                     setStatus("idle");
-                    setUploadedFilename("");
-                    setSelectedFile(null);
+                    resetAllState();
                   } finally {
                     setIsDeleting(false);
                   }
                 }}
               >
-                {isDeleting ? "Deleting…" : "Delete"}
+                {isDeleting ? "Deleting\u2026" : "Delete"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -379,7 +431,7 @@ export function AudioInput({ sessionId }: Props) {
     return (
       <section className="card-base h-full flex flex-col gap-4 min-h-[260px]">
         <header>
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Audio Input</h3>
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Session Input</h3>
         </header>
 
         {/* Microphone + Waveform */}
@@ -445,7 +497,7 @@ export function AudioInput({ sessionId }: Props) {
     return (
       <section className="card-base h-full flex flex-col gap-4 min-h-[260px]">
         <header>
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Audio Input</h3>
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Session Input</h3>
         </header>
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="text-center">
@@ -483,12 +535,39 @@ export function AudioInput({ sessionId }: Props) {
     );
   }
 
-  // ── Default state: Record & Upload together ──────────────────
+  // ── Default state: mode toggle + input ──────────────────────
   return (
     <section className="card-base h-full flex flex-col gap-4 min-h-[260px]">
       <header>
-        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Audio Input</h3>
+        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Session Input</h3>
       </header>
+
+      {/* ── Mode toggle tabs ──────────────────────────────────── */}
+      <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden self-center">
+        <button
+          type="button"
+          onClick={() => setInputMode("audio")}
+          className={`px-4 py-1.5 text-xs font-semibold transition ${
+            inputMode === "audio"
+              ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+              : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+          }`}
+        >
+          Audio
+        </button>
+        <button
+          type="button"
+          data-testid="action-text-mode"
+          onClick={() => setInputMode("text")}
+          className={`px-4 py-1.5 text-xs font-semibold transition ${
+            inputMode === "text"
+              ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+              : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+          }`}
+        >
+          Text Summary
+        </button>
+      </div>
 
       <input
         ref={fileInputRef}
@@ -498,70 +577,101 @@ export function AudioInput({ sessionId }: Props) {
         className="hidden"
       />
 
-      <div className="flex-1 flex flex-col items-center justify-center gap-5">
-        {/* Record button */}
-        <div className="text-center">
-          <button
-            type="button"
-            onClick={startRecording}
-            disabled={status === "uploading"}
-            className="w-20 h-20 mx-auto mb-2 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center hover:bg-red-200 dark:hover:bg-red-900/40 transition disabled:opacity-50"
-          >
-            <svg className="w-10 h-10 text-red-600" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-            </svg>
-          </button>
-          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Record</p>
-        </div>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3 w-full max-w-[200px]">
-          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">or</span>
-          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-        </div>
-
-        {/* Upload area */}
-        <div className="text-center">
-          {selectedFile ? (
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">{selectedFile.name}</p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleUploadClick}
-                  disabled={status === "uploading"}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
-                >
-                  Change
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={status === "uploading"}
-                  data-testid="action-upload-file"
-                  className="px-4 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-xs font-semibold text-white shadow-sm transition disabled:opacity-50"
-                >
-                  {status === "uploading" ? "Uploading..." : "Upload"}
-                </button>
-              </div>
-            </div>
-          ) : (
+      {/* ── Audio mode ──────────────────────────────────────────── */}
+      {inputMode === "audio" && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-5">
+          {/* Record button */}
+          <div className="text-center">
             <button
               type="button"
-              onClick={handleUploadClick}
+              onClick={startRecording}
               disabled={status === "uploading"}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
+              className="w-20 h-20 mx-auto mb-2 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center hover:bg-red-200 dark:hover:bg-red-900/40 transition disabled:opacity-50"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              <svg className="w-10 h-10 text-red-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
               </svg>
-              Upload audio/video file
             </button>
-          )}
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Record</p>
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 w-full max-w-[200px]">
+            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">or</span>
+            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+          </div>
+
+          {/* Upload area */}
+          <div className="text-center">
+            {selectedFile ? (
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]">{selectedFile.name}</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleUploadClick}
+                    disabled={status === "uploading"}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={status === "uploading"}
+                    data-testid="action-upload-file"
+                    className="px-4 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-xs font-semibold text-white shadow-sm transition disabled:opacity-50"
+                  >
+                    {status === "uploading" ? "Uploading..." : "Upload"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleUploadClick}
+                disabled={status === "uploading"}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Upload audio/video file
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Text summary mode ───────────────────────────────────── */}
+      {inputMode === "text" && (
+        <div className="flex-1 flex flex-col gap-3">
+          <textarea
+            data-testid="input-text-summary"
+            value={textSummary}
+            onChange={(e) => setTextSummary(e.target.value)}
+            placeholder="Paste or type your session summary here. This will be used directly for note generation (skips transcription)."
+            className="flex-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+            maxLength={MAX_TEXT_LENGTH}
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-400 dark:text-slate-500">
+              {textSummary.length.toLocaleString()} / {MAX_TEXT_LENGTH.toLocaleString()}
+            </span>
+            <button
+              type="button"
+              data-testid="action-submit-text"
+              onClick={submitTextSummary}
+              disabled={!textSummary.trim() || status === "processing"}
+              className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {status === "processing" ? "Submitting\u2026" : "Generate Note"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {jobNotice && (
         <div
