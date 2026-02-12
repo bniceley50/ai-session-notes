@@ -1,44 +1,56 @@
 import { NextResponse } from "next/server";
-import { authConfig } from "@/lib/auth/config";
-import { exchangeCodeForTokens, verifyIdToken } from "@/lib/auth/cognito";
-import {
-  clearStateCookie,
-  createSessionCookie,
-  readStateFromCookieHeader,
-} from "@/lib/auth/session";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSessionCookie } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
+/**
+ * GET /api/auth/callback?code=...
+ *
+ * Supabase redirects here after the user consents at the OAuth provider.
+ * We exchange the auth code for a Supabase session, extract user info,
+ * mint our own app-level JWT session cookie, then redirect to the app.
+ */
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
+  const origin = url.origin;
 
-  if (!code || !state) {
-    return NextResponse.json({ error: "Missing code or state" }, { status: 400 });
+  if (!code) {
+    return NextResponse.redirect(new URL("/login?error=missing_code", origin));
   }
 
-  const stateCookie = readStateFromCookieHeader(request.headers.get("cookie"));
-  if (!stateCookie || stateCookie !== state) {
-    return NextResponse.json({ error: "Invalid state" }, { status: 400 });
+  const supabase = await createSupabaseServerClient();
+
+  // Exchange the PKCE code for a Supabase session
+  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+  if (exchangeError) {
+    return NextResponse.redirect(new URL("/login?error=exchange_failed", origin));
   }
 
-  try {
-    const { idToken } = await exchangeCodeForTokens(code);
-    const { sub, email } = await verifyIdToken(idToken);
-
-    const sessionCookie = await createSessionCookie({
-      sub,
-      email,
-      practiceId: authConfig.defaultPracticeId,
-      role: "clinician",
-    });
-
-    const response = NextResponse.redirect(new URL("/", request.url));
-    response.headers.append("set-cookie", sessionCookie);
-    response.headers.append("set-cookie", clearStateCookie());
-    return response;
-  } catch {
-    return NextResponse.json({ error: "Authentication failed" }, { status: 400 });
+  // Get the authenticated user
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return NextResponse.redirect(new URL("/login?error=no_user", origin));
   }
+
+  // Mint our own app-level session cookie
+  const practiceId = process.env.DEFAULT_PRACTICE_ID;
+  if (!practiceId) {
+    return NextResponse.json(
+      { error: "Server misconfigured: missing DEFAULT_PRACTICE_ID" },
+      { status: 500 },
+    );
+  }
+
+  const sessionCookie = await createSessionCookie({
+    sub: user.id,
+    email: user.email,
+    practiceId,
+    role: "clinician",
+  });
+
+  const response = NextResponse.redirect(new URL("/", origin));
+  response.headers.append("set-cookie", sessionCookie);
+  return response;
 }

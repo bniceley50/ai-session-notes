@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { readSessionFromCookieHeader } from "@/lib/auth/session";
 
 const PUBLIC_PREFIXES = ["/api/auth", "/_next"];
-const PUBLIC_PATHS = ["/favicon.ico", "/robots.txt", "/sitemap.xml"];
+const PUBLIC_PATHS = ["/login", "/favicon.ico", "/robots.txt", "/sitemap.xml"];
 const PUBLIC_EXTENSIONS = [
   ".png",
   ".jpg",
@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest): Promise<Response> {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
-    const loginUrl = new URL("/api/auth/login", request.url);
+    const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
 
