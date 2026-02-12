@@ -22,6 +22,7 @@
     "dependencies": {
         "@anthropic-ai/sdk": "^0.74.0",
         "@heroicons/react": "^2.2.0",
+        "@supabase/ssr": "^0.8.0",
         "@supabase/supabase-js": "^2.91.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",

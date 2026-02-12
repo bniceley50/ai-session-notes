@@ -1,7 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 
 export const SESSION_COOKIE_NAME = "asn_session";
-export const STATE_COOKIE_NAME = "asn_auth_state";
 
 export type SessionRole = "clinician" | "admin";
 
@@ -104,35 +103,6 @@ const toSessionPayload = (payload: Record<string, unknown>): SessionPayload | nu
     exp: payload.exp,
   };
 };
-
-export const createStateCookie = (state: string): string =>
-  serializeCookie({
-    name: STATE_COOKIE_NAME,
-    value: state,
-    options: {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      secure: isProduction,
-      maxAge: 600,
-    },
-  });
-
-export const clearStateCookie = (): string =>
-  serializeCookie({
-    name: STATE_COOKIE_NAME,
-    value: "",
-    options: {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      secure: isProduction,
-      maxAge: 0,
-    },
-  });
-
-export const readStateFromCookieHeader = (cookieHeader: string | null): string | null =>
-  getCookieValue(cookieHeader, STATE_COOKIE_NAME);
 
 export const createSessionCookie = async (session: SessionInput): Promise<string> => {
   const now = Math.floor(Date.now() / 1000);

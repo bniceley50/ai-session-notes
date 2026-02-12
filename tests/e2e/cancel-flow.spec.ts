@@ -28,7 +28,7 @@ test.describe("Cancel Flow", () => {
   }) => {
     // ── 1. Dev-login ──────────────────────────────────────────
     await page.goto("/api/auth/dev-login");
-    await page.waitForURL("/");
+    await page.waitForURL("**/sessions/**");
 
     // ── 2. Navigate to a fresh session ────────────────────────
     const sessionId = randomUUID();

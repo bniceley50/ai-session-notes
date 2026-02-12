@@ -44,14 +44,9 @@ if (!process.env.ARTIFACTS_ROOT) {
   });
 }
 
-// Cognito (dummy values — only needed if auth/config.ts is transitively imported)
-process.env.COGNITO_DOMAIN ??= "example.auth.us-east-1.amazoncognito.com";
-process.env.COGNITO_CLIENT_ID ??= "dummy-client-id";
-process.env.COGNITO_CLIENT_SECRET ??= "dummy-client-secret";
-process.env.COGNITO_REDIRECT_URI ??= "http://localhost:3000/api/auth/callback";
-process.env.COGNITO_LOGOUT_URI ??= "http://localhost:3000/";
-process.env.COGNITO_USER_POOL_ID ??= "us-east-1_dummy";
-process.env.COGNITO_REGION ??= "us-east-1";
+// Supabase (dummy values — only needed if supabase client is transitively imported)
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://test.supabase.co";
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
 process.env.DEFAULT_PRACTICE_ID ??= "practice-test";
 
 // AI API keys (dummy values — whisper.ts and claude.ts eagerly instantiate clients at import time)

@@ -1,8 +1,7 @@
-﻿import fs from "node:fs/promises";
-import { readSessionFromCookieHeader } from "@/lib/auth/session";
+import fs from "node:fs/promises";
+import { requireJobOwner } from "@/lib/api/requireJobOwner";
 import { jsonError } from "@/lib/api/errors";
-import { readSessionOwnership } from "@/lib/sessions/ownership";
-import { readJobIndex, getJobExportPath } from "@/lib/jobs/status";
+import { getJobExportPath } from "@/lib/jobs/status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,22 +10,19 @@ type RouteContext = {
   params: Promise<{ jobId: string }>;
 };
 
+/**
+ * GET /api/jobs/[jobId]/export
+ *
+ * Returns the plain-text export (SOAP note) for a completed job.
+ * Auth: requireJobOwner (cookie → JWT → jobIndex → sessionOwnership → userId).
+ */
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
-  const { jobId } = await context.params;
+  const { jobId: jobIdParam } = await context.params;
 
-  const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
-  if (!session) return jsonError(401, "UNAUTHENTICATED", "unauthorized");
+  const auth = await requireJobOwner(request, jobIdParam);
+  if (!auth.ok) return auth.response;
 
-  const idx = await readJobIndex(jobId);
-  if (!idx) return jsonError(404, "NOT_FOUND", "job not found");
-
-  // deny-by-default: if ownership can't be proven, act like it doesn't exist
-  const ownership = await readSessionOwnership(idx.sessionId);
-  if (!ownership || ownership.ownerUserId !== session.sub) {
-    return jsonError(404, "NOT_FOUND", "job not found");
-  }
-
-  const p = getJobExportPath(idx.sessionId, jobId);
+  const p = getJobExportPath(auth.sessionId, auth.jobId);
 
   try {
     const text = await fs.readFile(p, "utf8");

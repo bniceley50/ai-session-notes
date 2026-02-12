@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { SessionJobProvider } from "@/components/session/SessionJobContext";
 import { AudioInput } from "@/components/session/AudioInput";
 import { TranscriptViewer } from "@/components/session/TranscriptViewer";
@@ -21,20 +22,23 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
       <div className="flex items-center justify-between gap-3 flex-none">
         <div>
           <Link
-            href="/"
+            href="/sessions/new"
             className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
           >
-            &larr; Back to sessions
+            + New Session
           </Link>
           <h1 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
             Session Workspace
           </h1>
           <p className="mt-1 text-xs font-mono text-slate-500">ID: {decodedSessionId}</p>
         </div>
-        <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-          <ShieldCheck className="h-3.5 w-3.5" />
-          Session artifacts auto-delete in 24 hours.
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Session artifacts auto-delete in 24 hours.
+          </p>
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* WORKSPACE — Takes ~75-80% of height */}

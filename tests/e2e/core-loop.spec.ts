@@ -40,8 +40,8 @@ test.describe("Core Loop — Happy Path", () => {
     // Navigate to dev-login so the session cookie is set in the
     // browser context (page.request.get doesn't share cookies with page).
     await page.goto("/api/auth/dev-login");
-    // Dev-login redirects to / — wait for that to land
-    await page.waitForURL("/");
+    // Dev-login redirects to / → /sessions/new → /sessions/{uuid}
+    await page.waitForURL("**/sessions/**");
 
     // ── 2. Navigate directly to a new session ────────────────────
     // Generate UUID ourselves to avoid fragile client-side redirect timing

@@ -1,12 +1,14 @@
-﻿import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { readSessionFromCookieHeader } from "@/lib/auth/session";
+import { requireJobOwner } from "@/lib/api/requireJobOwner";
+import { jsonError } from "@/lib/api/errors";
 import { getJobWithProgress, recordJobUpload } from "@/lib/jobs/store";
 import { ARTIFACTS_ROOT, getJobArtifactsDir, safeFilename } from "@/lib/jobs/artifacts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
 type RouteContext = {
   params: Promise<{ jobId: string }>;
 };
@@ -20,55 +22,62 @@ function isWithinBase(baseDir: string, targetDir: string): boolean {
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
+/**
+ * POST /api/jobs/[jobId]/upload
+ *
+ * Uploads an audio file for a job.
+ * Auth: requireJobOwner (cookie → JWT → jobIndex → sessionOwnership → userId).
+ *
+ * The sessionId used for filesystem paths comes from the auth chain (jobIndex),
+ * NOT from the client-supplied form field — preventing path-traversal via
+ * spoofed sessionId values.
+ *
+ * NOTE: If the server process restarted since the job was created, the
+ * in-memory store will be empty and this returns 404. This is expected —
+ * the job must be re-created after a restart.
+ */
 export async function POST(request: NextRequest, context: RouteContext): Promise<Response> {
-  const { jobId } = await context.params;
+  const { jobId: jobIdParam } = await context.params;
 
-  const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
-  if (!session) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+  // ── Auth: single-pass ownership check ──────────────────────────
+  const auth = await requireJobOwner(request, jobIdParam);
+  if (!auth.ok) return auth.response;
 
+  // ── Parse multipart form ───────────────────────────────────────
   // DEMO/STUB: formData() is not streaming; large uploads may buffer in memory.
   let form: FormData;
   try {
     form = await request.formData();
   } catch {
-    return NextResponse.json({ error: "invalid form data" }, { status: 400 });
-  }
-
-  const sessionIdRaw = form.get("sessionId");
-  const sessionId = typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
-  if (!sessionId) {
-    return NextResponse.json({ error: "sessionId required" }, { status: 400 });
+    return jsonError(400, "BAD_REQUEST", "invalid form data");
   }
 
   const file = form.get("file");
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: "file required" }, { status: 400 });
+    return jsonError(400, "BAD_REQUEST", "file required");
   }
 
   if (file.size > MAX_UPLOAD_BYTES) {
-    return NextResponse.json({ error: "file too large" }, { status: 413 });
+    return jsonError(413, "PAYLOAD_TOO_LARGE", "file too large");
   }
 
-  const job = getJobWithProgress(jobId);
-  if (!job || job.practiceId !== session.practiceId) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
+  // ── Verify in-memory store has the job ─────────────────────────
+  const job = getJobWithProgress(auth.jobId);
+  if (!job) {
+    // In-memory store has no record (e.g. after process restart).
+    return jsonError(404, "NOT_FOUND", "Job not found or not accessible.");
   }
 
-  if (job.sessionId !== sessionId) {
-    return NextResponse.json({ error: "session mismatch" }, { status: 409 });
-  }
-
+  // ── Build safe filesystem path from auth chain (not client input) ──
   let jobDir: string;
   try {
-    jobDir = getJobArtifactsDir(session.practiceId, sessionId, jobId);
+    jobDir = getJobArtifactsDir(auth.practiceId, auth.sessionId, auth.jobId);
   } catch {
-    return NextResponse.json({ error: "invalid path segment" }, { status: 400 });
+    return jsonError(400, "BAD_REQUEST", "invalid path segment");
   }
 
   if (!isWithinBase(ARTIFACTS_ROOT, jobDir)) {
-    return NextResponse.json({ error: "invalid path" }, { status: 400 });
+    return jsonError(400, "BAD_REQUEST", "invalid path");
   }
 
   const audioDir = path.join(jobDir, "audio");
@@ -90,13 +99,10 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
   const sidecarPath = path.join(jobDir, "upload.json");
   await fs.writeFile(sidecarPath, JSON.stringify(upload, null, 2), "utf8");
 
-  const updated = recordJobUpload(jobId, session.practiceId, sessionId, upload);
+  const updated = recordJobUpload(auth.jobId, auth.practiceId, auth.sessionId, upload);
   if (!updated) {
-    return NextResponse.json({ error: "failed to record upload" }, { status: 500 });
+    return jsonError(500, "INTERNAL", "failed to record upload");
   }
 
-  return NextResponse.json(updated, { status: 200 });
+  return Response.json(updated, { status: 200 });
 }
-
-
-
