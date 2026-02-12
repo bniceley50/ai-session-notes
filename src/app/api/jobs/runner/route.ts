@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { processQueuedJobs } from "@/lib/jobs/runner";
+import { purgeExpiredJobArtifacts } from "@/lib/jobs/purge";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,12 +64,15 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
   try {
+    const purge = await purgeExpiredJobArtifacts();
     const processed = await processQueuedJobs();
 
     return NextResponse.json({
       success: true,
       processed,
-      message: `Processed ${processed} queued job(s)`,
+      purged: purge.purgedJobs,
+      purgedSessions: purge.purgedSessions,
+      message: `Processed ${processed} queued job(s), purged ${purge.purgedJobs} expired job(s)`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

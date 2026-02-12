@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readSessionFromCookieHeader } from "@/lib/auth/session";
 import { purgeExpired } from "@/lib/jobs/store";
+import { purgeExpiredJobArtifacts } from "@/lib/jobs/purge";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,12 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const purged = purgeExpired();
-  return NextResponse.json({ purged });
+  const inMemoryPurged = purgeExpired();
+  const artifactPurge = await purgeExpiredJobArtifacts();
+  return NextResponse.json({
+    purged: Math.max(inMemoryPurged, artifactPurge.purgedJobs),
+    purgedInMemory: inMemoryPurged,
+    purgedArtifacts: artifactPurge.purgedJobs,
+    purgedSessions: artifactPurge.purgedSessions,
+  });
 }
