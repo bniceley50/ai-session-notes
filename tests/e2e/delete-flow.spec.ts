@@ -35,7 +35,7 @@ test.describe("Delete Flow", () => {
     // ── 2. Navigate to a fresh session ────────────────────────
     const sessionId = randomUUID();
     await page.goto(`/sessions/${sessionId}`);
-    await expect(page.getByText("Audio Input")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Session Input")).toBeVisible({ timeout: 15_000 });
 
     // ── 3. Upload fixture ─────────────────────────────────────
     const fileInput = page.locator('input[type="file"]');

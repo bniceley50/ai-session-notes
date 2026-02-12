@@ -48,8 +48,8 @@ test.describe("Core Loop — Happy Path", () => {
     const sessionId = randomUUID();
     await page.goto(`/sessions/${sessionId}`);
 
-    // Verify the session page loaded (Audio Input heading present)
-    await expect(page.getByText("Audio Input")).toBeVisible({ timeout: 15_000 });
+    // Verify the session page loaded (Session Input heading present)
+    await expect(page.getByText("Session Input")).toBeVisible({ timeout: 15_000 });
 
     // ── 3. Upload the silent audio fixture ───────────────────────
     // The file input is hidden; we interact with it directly via
