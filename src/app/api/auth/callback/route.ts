@@ -61,7 +61,7 @@ export async function GET(request: Request): Promise<Response> {
     role: "clinician",
   });
 
-  const response = NextResponse.redirect(new URL("/", origin));
+  const response = NextResponse.redirect(new URL("/sessions/new", origin));
   response.headers.append("set-cookie", sessionCookie);
   return response;
 }
