@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type LoginPageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -16,7 +17,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const errorMessage = error ? ERROR_MESSAGES[error] ?? "Authentication failed. Please try again." : null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-sm space-y-8">
         {/* Brand */}
         <div className="text-center">
