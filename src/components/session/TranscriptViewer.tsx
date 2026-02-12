@@ -8,6 +8,7 @@ import { PanelHeader } from "./PanelHeader";
 import { ProgressBar } from "./ProgressBar";
 import { Button } from "@/components/ui/button";
 import { DropdownButton } from "@/components/ui/DropdownButton";
+import { createDocxBlobFromText } from "@/lib/export/docx";
 
 type Props = { sessionId: string };
 
@@ -54,7 +55,7 @@ export function TranscriptViewer({ sessionId }: Props) {
   const isReady = job && (job.status === "complete" || job.progress >= 40);
   const isRunning = job && job.status !== "complete" && job.status !== "failed" && !isReady;
 
-  const handleExport = (option: string) => {
+  const handleExport = async (option: string) => {
     if (!transcript || transcript === "") {
       toast.warning("No transcript available to export yet.");
       return;
@@ -82,7 +83,20 @@ export function TranscriptViewer({ sessionId }: Props) {
       }
 
       case "Download .docx":
-        toast.info("Word document export coming soon");
+        try {
+          const blob = await createDocxBlobFromText(transcript, { title: "Transcript" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `transcript-${sessionId}-${new Date().toISOString().split("T")[0]}.docx`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          toast.success("Download started");
+        } catch {
+          toast.error("Failed to generate Word document");
+        }
         break;
     }
   };
@@ -93,7 +107,15 @@ export function TranscriptViewer({ sessionId }: Props) {
         testId="panel-header-transcript"
         title="Transcript"
         status={job ? <JobStatusChip status={job.status} stage={job.stage} testId="status-chip-transcript" /> : undefined}
-        actions={<DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .docx"]} onChange={handleExport} />}
+        actions={
+          <DropdownButton
+            label="Export"
+            options={["Copy Text", "Download .txt", "Download .docx"]}
+            onChange={(option) => {
+              void handleExport(option);
+            }}
+          />
+        }
       />
       <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
         {loading ? (

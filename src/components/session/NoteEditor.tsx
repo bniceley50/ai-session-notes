@@ -12,6 +12,7 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { jsPDF } from "jspdf";
+import { createDocxBlobFromText } from "@/lib/export/docx";
 
 type Props = { sessionId: string };
 type NoteType = "soap" | "dap" | "birp" | "girp" | "intake" | "progress" | "freeform";
@@ -245,7 +246,7 @@ export function NoteEditor({ sessionId }: Props) {
   };
 
   // ── Export handler ────────────────────────────────────────────
-  const handleExport = (option: string) => {
+  const handleExport = async (option: string) => {
     if (!note || note.trim() === "") {
       toast.warning("No content available to export yet.");
       return;
@@ -272,7 +273,22 @@ export function NoteEditor({ sessionId }: Props) {
       }
 
       case "Download .docx":
-        toast.info("Word document export coming soon");
+        try {
+          const blob = await createDocxBlobFromText(note, {
+            title: `${noteType.toUpperCase()} Note`,
+          });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `${noteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.docx`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          toast.success("Download started");
+        } catch {
+          toast.error("Failed to generate Word document");
+        }
         break;
 
       case "Download .pdf": {
@@ -353,7 +369,9 @@ export function NoteEditor({ sessionId }: Props) {
           <DropdownButton
             label="Copy/Export"
             options={["Copy to Clipboard", "Download .txt", "Download .docx", "Download .pdf"]}
-            onChange={handleExport}
+            onChange={(option) => {
+              void handleExport(option);
+            }}
             buttonClassName="bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-sm"
           />
         </div>

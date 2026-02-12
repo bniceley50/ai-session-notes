@@ -12,6 +12,7 @@ import { DropdownButton } from "@/components/ui/DropdownButton";
 import { jsPDF } from "jspdf";
 import type { ClinicalNoteType } from "@/lib/jobs/claude";
 import type { JobStage, JobStatus } from "@/lib/jobs/status";
+import { createDocxBlobFromText } from "@/lib/export/docx";
 
 type Props = { sessionId: string };
 
@@ -201,7 +202,7 @@ export function AIAnalysisViewer({ sessionId }: Props) {
 
   const selectedLabel = NOTE_TYPE_OPTIONS.find((o) => o.value === selectedNoteType)?.label ?? "Note";
 
-  const handleExport = (option: string) => {
+  const handleExport = async (option: string) => {
     if (!draft || draft === "") {
       toast.warning("No content available to export yet.");
       return;
@@ -226,6 +227,23 @@ export function AIAnalysisViewer({ sessionId }: Props) {
         URL.revokeObjectURL(url);
         break;
       }
+
+      case "Download .docx":
+        try {
+          const blob = await createDocxBlobFromText(draft, { title: selectedLabel });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `${selectedNoteType}-note-${sessionId}-${new Date().toISOString().split("T")[0]}.docx`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          toast.success("Download started");
+        } catch {
+          toast.error("Failed to generate Word document");
+        }
+        break;
 
       case "Download .pdf": {
         try {
@@ -311,7 +329,13 @@ export function AIAnalysisViewer({ sessionId }: Props) {
                 )}
               </>
             )}
-            <DropdownButton label="Export" options={["Copy Text", "Download .txt", "Download .pdf"]} onChange={handleExport} />
+            <DropdownButton
+              label="Export"
+              options={["Copy Text", "Download .txt", "Download .docx", "Download .pdf"]}
+              onChange={(option) => {
+                void handleExport(option);
+              }}
+            />
           </div>
         }
       />
