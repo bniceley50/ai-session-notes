@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -10,10 +10,20 @@ import { runJobPipeline, type PipelineMode } from "@/lib/jobs/pipeline";
 import type { ClinicalNoteType } from "@/lib/jobs/claude";
 import { createJob } from "@/lib/jobs/store";
 import { readSessionOwnership } from "@/lib/sessions/ownership";
-import { getJobDir, writeJobIndex, writeJobStatus, type JobStatusFile } from "@/lib/jobs/status";
+import {
+  getJobDir,
+  getJobTranscriptPath,
+  getSessionTranscriptPath,
+  writeJobIndex,
+  writeJobStatus,
+  type JobStatusFile,
+} from "@/lib/jobs/status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Max length for pasted text summaries (roughly 50k chars ≈ 12k tokens) */
+const MAX_TEXT_LENGTH = 50_000;
 
 export async function POST(request: Request): Promise<Response> {
   const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
@@ -21,9 +31,15 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError(401, "UNAUTHENTICATED", "Please sign in to continue.");
   }
 
-  let payload: { sessionId?: unknown; audioArtifactId?: unknown; mode?: unknown; noteType?: unknown } = {};
+  let payload: {
+    sessionId?: unknown;
+    audioArtifactId?: unknown;
+    transcriptText?: unknown;
+    mode?: unknown;
+    noteType?: unknown;
+  } = {};
   try {
-    payload = (await request.json()) as { sessionId?: unknown; audioArtifactId?: unknown; mode?: unknown; noteType?: unknown };
+    payload = (await request.json()) as typeof payload;
   } catch {
     payload = {};
   }
@@ -31,26 +47,26 @@ export async function POST(request: Request): Promise<Response> {
   const sessionId = typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
   const audioArtifactId =
     typeof payload.audioArtifactId === "string" ? payload.audioArtifactId.trim() : "";
+  const transcriptText =
+    typeof payload.transcriptText === "string" ? payload.transcriptText.trim() : "";
+
   const VALID_MODES = ["transcribe", "analyze", "full"] as const;
-  const mode: PipelineMode =
-    typeof payload.mode === "string" && VALID_MODES.includes(payload.mode as PipelineMode)
-      ? (payload.mode as PipelineMode)
-      : "full";
   const VALID_NOTE_TYPES = ["soap", "dap", "birp", "girp", "intake", "progress"] as const;
+
   const noteType: ClinicalNoteType =
     typeof payload.noteType === "string" && VALID_NOTE_TYPES.includes(payload.noteType as ClinicalNoteType)
       ? (payload.noteType as ClinicalNoteType)
       : "soap";
 
-  if (!sessionId || !audioArtifactId) {
-    return jsonError(400, "BAD_REQUEST", "sessionId and audioArtifactId required.");
+  // ── Validate session ─────────────────────────────────────────
+  if (!sessionId) {
+    return jsonError(400, "BAD_REQUEST", "sessionId is required.");
   }
 
   try {
     safePathSegment(sessionId);
-    safePathSegment(audioArtifactId);
   } catch {
-    return jsonError(400, "BAD_REQUEST", "Invalid sessionId or audioArtifactId.");
+    return jsonError(400, "BAD_REQUEST", "Invalid sessionId.");
   }
 
   const ownership = await readSessionOwnership(sessionId);
@@ -58,11 +74,40 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError(404, "NOT_FOUND", "Session not found or not accessible.");
   }
 
-  const artifact = await readAudioMetadata(sessionId, audioArtifactId);
-  if (!artifact) {
-    return jsonError(404, "NOT_FOUND", "Audio artifact not found.");
+  // ── Determine input mode: audio vs. text ─────────────────────
+  const isTextMode = transcriptText.length > 0;
+
+  if (!isTextMode && !audioArtifactId) {
+    return jsonError(400, "BAD_REQUEST", "Provide audioArtifactId or transcriptText.");
   }
 
+  // ── Text mode validation ─────────────────────────────────────
+  if (isTextMode && transcriptText.length > MAX_TEXT_LENGTH) {
+    return jsonError(400, "BAD_REQUEST", `Text too long (max ${MAX_TEXT_LENGTH.toLocaleString()} characters).`);
+  }
+
+  // ── Audio mode validation ────────────────────────────────────
+  if (!isTextMode) {
+    try {
+      safePathSegment(audioArtifactId);
+    } catch {
+      return jsonError(400, "BAD_REQUEST", "Invalid audioArtifactId.");
+    }
+
+    const artifact = await readAudioMetadata(sessionId, audioArtifactId);
+    if (!artifact) {
+      return jsonError(404, "NOT_FOUND", "Audio artifact not found.");
+    }
+  }
+
+  // Text mode always uses "analyze" (skip Whisper); audio mode uses what caller asked
+  const mode: PipelineMode = isTextMode
+    ? "analyze"
+    : typeof payload.mode === "string" && VALID_MODES.includes(payload.mode as PipelineMode)
+      ? (payload.mode as PipelineMode)
+      : "full";
+
+  // ── Create the job ───────────────────────────────────────────
   const jobId = `job_${randomUUID()}`;
   const now = new Date().toISOString();
   const status: JobStatusFile = {
@@ -80,8 +125,28 @@ export async function POST(request: Request): Promise<Response> {
 
   const jobDir = getJobDir(sessionId, jobId);
   await fs.mkdir(jobDir, { recursive: true });
-  const jobMeta = { jobId, sessionId, audioArtifactId, createdAt: now };
+
+  const jobMeta = {
+    jobId,
+    sessionId,
+    ...(isTextMode ? { inputMode: "text" } : { audioArtifactId }),
+    createdAt: now,
+  };
   await fs.writeFile(path.join(jobDir, "job.json"), JSON.stringify(jobMeta, null, 2), "utf8");
+
+  // ── Text mode: pre-write transcript so analyze-only pipeline can load it
+  if (isTextMode) {
+    const formattedTranscript = `Text Summary\n\nSubmitted: ${now}\n\n---\n\n${transcriptText}\n`;
+
+    const writeTextFile = async (filePath: string, content: string) => {
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, content, "utf8");
+    };
+
+    // Write both job-level and session-level transcript (matches pipeline convention)
+    await writeTextFile(getJobTranscriptPath(sessionId, jobId), formattedTranscript);
+    await writeTextFile(getSessionTranscriptPath(sessionId), formattedTranscript);
+  }
 
   try {
     createJob(session.practiceId, sessionId, jobId);
@@ -90,7 +155,13 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   setTimeout(() => {
-    void runJobPipeline({ sessionId, jobId, artifactId: audioArtifactId, mode, noteType });
+    void runJobPipeline({
+      sessionId,
+      jobId,
+      artifactId: isTextMode ? "" : audioArtifactId,
+      mode,
+      noteType,
+    });
   }, 0);
 
   return NextResponse.json({
@@ -99,6 +170,3 @@ export async function POST(request: Request): Promise<Response> {
     statusUrl: `/api/jobs/${jobId}`,
   });
 }
-
-
-

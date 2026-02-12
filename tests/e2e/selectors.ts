@@ -22,6 +22,8 @@ export const TID = {
     cancelDeleteDialog: "action-cancel-delete-dialog",
     confirmDeleteJob: "action-confirm-delete-job",
     uploadFile: "action-upload-file",
+    textMode: "action-text-mode",
+    submitText: "action-submit-text",
     generateNote: "action-generate-note",
     transferNotes: "action-transfer-notes",
   },
@@ -45,6 +47,7 @@ export const TID = {
     transcript: "transcript-content",
     analysisDraft: "analysis-draft-content",
     noteEditorTextarea: "note-editor-textarea",
+    textSummaryInput: "input-text-summary",
   },
 
   // ── Prompts ─────────────────────────────────────────────
