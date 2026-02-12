@@ -1,4 +1,9 @@
 import { SignJWT, jwtVerify } from "jose";
+import {
+  authCookieSecret,
+  sessionTtlSeconds,
+  isProduction as envIsProduction,
+} from "@/lib/config";
 
 export const SESSION_COOKIE_NAME = "asn_session";
 
@@ -25,32 +30,21 @@ export type CookieOptions = {
 };
 
 const encoder = new TextEncoder();
-const isProduction = process.env.NODE_ENV === "production";
 
 const readCookieSecret = (): Uint8Array | null => {
-  const secret = process.env.AUTH_COOKIE_SECRET;
-  if (!secret) return null;
-  return encoder.encode(secret);
+  try {
+    return encoder.encode(authCookieSecret());
+  } catch {
+    return null;
+  }
 };
 
 const requireCookieSecret = (): Uint8Array => {
-  const secret = readCookieSecret();
-  if (!secret) {
-    throw new Error("Missing required env var: AUTH_COOKIE_SECRET");
-  }
-  return secret;
+  return encoder.encode(authCookieSecret());
 };
 
 const readSessionTtlSeconds = (): number => {
-  const raw = process.env.SESSION_TTL_SECONDS;
-  if (!raw) {
-    throw new Error("Missing required env var: SESSION_TTL_SECONDS");
-  }
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error("Invalid numeric env var: SESSION_TTL_SECONDS");
-  }
-  return value;
+  return sessionTtlSeconds();
 };
 
 const getCookieValue = (cookieHeader: string | null, name: string): string | null => {
@@ -128,7 +122,7 @@ export const createSessionCookie = async (session: SessionInput): Promise<string
       httpOnly: true,
       sameSite: "lax",
       path: "/",
-      secure: isProduction,
+      secure: envIsProduction(),
       maxAge: ttl,
     },
   });
@@ -142,7 +136,7 @@ export const clearSessionCookie = (): string =>
       httpOnly: true,
       sameSite: "lax",
       path: "/",
-      secure: isProduction,
+      secure: envIsProduction(),
       maxAge: 0,
     },
   });

@@ -71,8 +71,9 @@ class ByteLimitTransform extends Transform {
 
 const normalizeMime = (value: string): string => value.split(";")[0]?.trim().toLowerCase();
 
-const isAutocreateAllowed = (): boolean =>
-  process.env.ALLOW_SESSION_AUTOCREATE === "1" && process.env.NODE_ENV !== "production";
+import { isSessionAutocreateAllowed } from "@/lib/config";
+
+const isAutocreateAllowed = (): boolean => isSessionAutocreateAllowed();
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;

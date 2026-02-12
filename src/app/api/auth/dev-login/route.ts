@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 import { createSessionCookie } from "@/lib/auth/session";
+import { isDevLoginAllowed, defaultPracticeId } from "@/lib/config";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request): Promise<Response> {
   // Step 0: STRICT dev-only guard
   // Only works in NODE_ENV=development with explicit ALLOW_DEV_LOGIN=1
-  if (process.env.NODE_ENV !== "development" || process.env.ALLOW_DEV_LOGIN !== "1") {
+  if (!isDevLoginAllowed()) {
     return new Response("Not Found", { status: 404 });
   }
 
-  const practiceId = process.env.DEFAULT_PRACTICE_ID;
-  if (!practiceId) {
-    return NextResponse.json({ error: "Missing DEFAULT_PRACTICE_ID" }, { status: 500 });
-  }
+  const practiceId = defaultPracticeId();
 
   const url = new URL(request.url);
   const email = url.searchParams.get("email") ?? undefined;

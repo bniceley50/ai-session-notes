@@ -2,12 +2,13 @@ import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import {
+  supabaseUrl as configSupabaseUrl,
+  supabaseAnonKey as configAnonKey,
+  supabaseServiceRoleKey,
+} from "@/lib/config";
 
 export const runtime = "nodejs";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 type BootstrapRequest = {
   name?: string;
@@ -25,6 +26,9 @@ const getBearerToken = (request: Request) => {
 };
 
 export async function POST(request: Request) {
+  const supabaseUrl = configSupabaseUrl();
+  const supabaseAnonKey = configAnonKey();
+  const serviceRoleKey = supabaseServiceRoleKey();
   if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
     return jsonError("Server misconfigured", 500);
   }

@@ -14,9 +14,15 @@ import { transcribeAudio, transcribeAudioChunked, CHUNK_THRESHOLD } from "@/lib/
 import { generateClinicalNote, type ClinicalNoteType } from "@/lib/jobs/claude";
 import { withTimeout } from "@/lib/jobs/withTimeout";
 import { checkFfmpeg } from "@/lib/jobs/ffmpeg";
+import {
+  aiWhisperTimeoutMs,
+  aiClaudeTimeoutMs,
+  aiRealApisEnabled,
+  aiStubApisEnabled,
+} from "@/lib/config";
 
-const WHISPER_TIMEOUT_MS = Number(process.env.AI_WHISPER_TIMEOUT_MS) || 120_000;
-const CLAUDE_TIMEOUT_MS = Number(process.env.AI_CLAUDE_TIMEOUT_MS) || 90_000;
+const WHISPER_TIMEOUT_MS = aiWhisperTimeoutMs();
+const CLAUDE_TIMEOUT_MS = aiClaudeTimeoutMs();
 
 export type PipelineMode = "transcribe" | "analyze" | "full";
 
@@ -84,15 +90,9 @@ async function tryClaimJob(sessionId: string, jobId: string): Promise<boolean> {
   }
 }
 
-const isRealApisEnabled = (): boolean => {
-  const flag = process.env.AI_ENABLE_REAL_APIS;
-  return flag === "1" || flag === "true";
-};
+const isRealApisEnabled = (): boolean => aiRealApisEnabled();
 
-const isStubModeEnabled = (): boolean => {
-  const flag = process.env.AI_ENABLE_STUB_APIS;
-  return flag === "1" || flag === "true";
-};
+const isStubModeEnabled = (): boolean => aiStubApisEnabled();
 
 export const runJobPipeline = async ({
   sessionId,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { processQueuedJobs } from "@/lib/jobs/runner";
 import { purgeExpiredJobArtifacts } from "@/lib/jobs/purge";
+import { jobsRunnerToken, isProduction } from "@/lib/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,11 +11,11 @@ export const dynamic = "force-dynamic";
  * Prevents unauthorized API spending
  */
 function verifyRunnerAuth(request: Request): boolean {
-  const token = process.env.JOBS_RUNNER_TOKEN;
+  const token = jobsRunnerToken();
 
   // If no token configured, deny access in production
   if (!token) {
-    if (process.env.NODE_ENV === "production") {
+    if (isProduction()) {
       return false;
     }
     // Allow in development without token for convenience

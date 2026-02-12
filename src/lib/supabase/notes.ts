@@ -14,6 +14,16 @@
 
 import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { supabaseUrl, supabaseServiceRoleKey } from "@/lib/config";
+
+function requireAdminClient() {
+  const url = supabaseUrl();
+  const key = supabaseServiceRoleKey();
+  if (!key) {
+    throw new Error("Missing Supabase configuration");
+  }
+  return createSupabaseAdminClient(url, key);
+}
 
 export type NoteType = "soap" | "dap" | "birp" | "girp" | "intake" | "progress" | "freeform";
 
@@ -35,14 +45,7 @@ export async function loadNote(
   orgId: string,
   noteType: NoteType
 ): Promise<Note | null> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Missing Supabase configuration");
-  }
-
-  const supabase = createSupabaseAdminClient(supabaseUrl, serviceRoleKey);
+  const supabase = requireAdminClient();
 
   const { data, error } = await supabase
     .from("notes")
@@ -116,14 +119,7 @@ export async function saveNote(
   noteType: NoteType,
   content: string
 ): Promise<Note> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Missing Supabase configuration");
-  }
-
-  const supabase = createSupabaseAdminClient(supabaseUrl, serviceRoleKey);
+  const supabase = requireAdminClient();
 
   // Ensure org + session rows exist so FK constraints are satisfied.
   // This is a no-op when rows already exist (upsert with onConflict).
@@ -181,14 +177,7 @@ export async function deleteNote(
   orgId: string,
   noteType: NoteType
 ): Promise<void> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Missing Supabase configuration");
-  }
-
-  const supabase = createSupabaseAdminClient(supabaseUrl, serviceRoleKey);
+  const supabase = requireAdminClient();
 
   const { error } = await supabase
     .from("notes")

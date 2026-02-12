@@ -1,15 +1,11 @@
 ﻿import { randomUUID } from "crypto";
 import type { JobRecord, JobStatus, JobStatusEvent, JobUpload } from "./types";
+import { jobTtlSeconds } from "@/lib/config";
 
 const jobs = new Map<string, JobRecord>();
 
 export const readJobTtlSeconds = (): number => {
-  const raw = process.env.JOB_TTL_SECONDS;
-  const value = Number(raw);
-  if (!raw || !Number.isFinite(value) || value <= 0) {
-    return 86400;
-  }
-  return Math.floor(value);
+  return jobTtlSeconds();
 };
 
 const clampProgress = (p: number): number =>

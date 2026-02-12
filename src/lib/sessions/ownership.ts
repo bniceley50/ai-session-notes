@@ -2,6 +2,7 @@
 import path from "node:path";
 import { ARTIFACTS_ROOT, safePathSegment } from "@/lib/jobs/artifacts";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { supabaseUrl as configSupabaseUrl, supabaseServiceRoleKey } from "@/lib/config";
 
 export type SessionOwnership = {
   sessionId: string;
@@ -52,11 +53,11 @@ export const writeSessionOwnership = async (
 
   // Also create in Supabase if orgId is provided
   if (orgId) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const url = configSupabaseUrl();
+    const key = supabaseServiceRoleKey();
 
-    if (supabaseUrl && serviceRoleKey) {
-      const supabase = createSupabaseAdminClient(supabaseUrl, serviceRoleKey);
+    if (url && key) {
+      const supabase = createSupabaseAdminClient(url, key);
 
       // Try to insert the session (ignore if it already exists)
       try {

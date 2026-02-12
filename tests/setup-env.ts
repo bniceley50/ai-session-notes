@@ -25,8 +25,10 @@ if (!fs.existsSync(path.join(serverOnlyDir, "index.js")) ||
 }
 
 // Session / JWT
-process.env.AUTH_COOKIE_SECRET ??= "test-secret-32-bytes-minimum-ok!";
-process.env.SESSION_TTL_SECONDS ??= "3600";
+// Use ||= instead of ??= because .env files may set vars to empty strings,
+// and our config module's requiredString() rejects empty strings.
+process.env.AUTH_COOKIE_SECRET ||= "test-secret-32-bytes-minimum-ok!";
+process.env.SESSION_TTL_SECONDS ||= "3600";
 
 // Artifacts root: create a temp dir so tests don't write into the project tree.
 // This MUST happen before any module imports artifacts.ts (which captures the value).
@@ -45,10 +47,10 @@ if (!process.env.ARTIFACTS_ROOT) {
 }
 
 // Supabase (dummy values — only needed if supabase client is transitively imported)
-process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://test.supabase.co";
-process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
-process.env.DEFAULT_PRACTICE_ID ??= "practice-test";
+process.env.NEXT_PUBLIC_SUPABASE_URL ||= "https://test.supabase.co";
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||= "test-anon-key";
+process.env.DEFAULT_PRACTICE_ID ||= "practice-test";
 
 // AI API keys (dummy values — whisper.ts and claude.ts eagerly instantiate clients at import time)
-process.env.OPENAI_API_KEY ??= "sk-test-dummy-key";
-process.env.ANTHROPIC_API_KEY ??= "sk-ant-test-dummy-key";
+process.env.OPENAI_API_KEY ||= "sk-test-dummy-key";
+process.env.ANTHROPIC_API_KEY ||= "sk-ant-test-dummy-key";
