@@ -10,9 +10,10 @@ import {
   getJobTranscriptPath,
   getSessionTranscriptPath,
 } from "@/lib/jobs/status";
-import { transcribeAudio } from "@/lib/jobs/whisper";
+import { transcribeAudio, transcribeAudioChunked, CHUNK_THRESHOLD } from "@/lib/jobs/whisper";
 import { generateClinicalNote, type ClinicalNoteType } from "@/lib/jobs/claude";
 import { withTimeout } from "@/lib/jobs/withTimeout";
+import { checkFfmpeg } from "@/lib/jobs/ffmpeg";
 
 const WHISPER_TIMEOUT_MS = Number(process.env.AI_WHISPER_TIMEOUT_MS) || 120_000;
 const CLAUDE_TIMEOUT_MS = Number(process.env.AI_CLAUDE_TIMEOUT_MS) || 90_000;
@@ -163,11 +164,44 @@ export const runJobPipeline = async ({
       // Check right before the expensive Whisper API call
       if (await shouldStop(jobId)) return;
 
-      const transcription = await withTimeout(
-        (signal) => transcribeAudio(sessionId, artifactId, signal),
-        WHISPER_TIMEOUT_MS,
-        "Whisper transcription",
-      );
+      // Route based on file size: chunked for large files, direct for small
+      let transcription: { text: string; duration?: number };
+
+      if (audio && audio.bytes > CHUNK_THRESHOLD) {
+        // Large file — verify FFmpeg is available
+        const ffmpegOk = await checkFfmpeg();
+        if (!ffmpegOk) {
+          throw new Error(
+            `Audio file is ${Math.round(audio.bytes / 1024 / 1024)}MB (over ${Math.round(CHUNK_THRESHOLD / 1024 / 1024)}MB limit). ` +
+            "FFmpeg is required for chunked transcription but was not found on PATH.",
+          );
+        }
+
+        await appendLog(sessionId, jobId, `large file (${Math.round(audio.bytes / 1024 / 1024)}MB) — using chunked transcription`);
+
+        transcription = await transcribeAudioChunked(
+          sessionId,
+          artifactId,
+          async (chunkIndex, totalChunks) => {
+            // Distribute progress across 0–40% range
+            const chunkProgress = Math.floor((chunkIndex / totalChunks) * 40);
+            await updateJobStatus(jobId, { status: "running", stage, progress: chunkProgress, errorMessage: null });
+            await appendLog(sessionId, jobId, `chunk ${chunkIndex}/${totalChunks} transcribed`);
+
+            // Check for cancellation between chunks
+            if (await shouldStop(jobId)) {
+              throw new Error("Job cancelled during chunked transcription");
+            }
+          },
+        );
+      } else {
+        // Small file — direct Whisper API call
+        transcription = await withTimeout(
+          (signal) => transcribeAudio(sessionId, artifactId, signal),
+          WHISPER_TIMEOUT_MS,
+          "Whisper transcription",
+        );
+      }
 
       // Check right after Whisper returns (user may have cancelled while waiting)
       if (await shouldStop(jobId)) return;
