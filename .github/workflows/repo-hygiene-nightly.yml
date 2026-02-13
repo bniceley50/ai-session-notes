@@ -1,0 +1,120 @@
+name: Repo Hygiene (Nightly)
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: repo-hygiene-nightly
+  cancel-in-progress: false
+
+jobs:
+  deep-audit:
+    name: Deep hygiene audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run deep hygiene audit
+        run: node tools/hygiene-audit.mjs --mode nightly --out-dir hygiene-report --fail-on NONE
+
+      - name: Typecheck
+        run: pnpm tsc --noEmit
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Upload hygiene report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hygiene-report-nightly
+          path: hygiene-report/
+          retention-days: 30
+
+      - name: Open deduplicated hygiene issues (P1/P2 non-autofixable)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const reportPath = path.join(process.cwd(), 'hygiene-report', 'findings.json');
+            if (!fs.existsSync(reportPath)) {
+              core.warning('No hygiene findings.json found; skipping issue creation.');
+              return;
+            }
+
+            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+            const findings = Array.isArray(report.findings) ? report.findings : [];
+            const actionable = findings
+              .filter((f) => ['P1', 'P2'].includes(f.severity) && !f.autoFixable)
+              .slice(0, 25);
+
+            if (actionable.length === 0) {
+              core.info('No actionable P1/P2 non-autofixable findings.');
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+
+            for (const finding of actionable) {
+              const title = `[hygiene:${finding.id}] ${finding.title}`;
+              const exists = openIssues.find((issue) => issue.title === title);
+              if (exists) {
+                core.info(`Issue already open: ${title}`);
+                continue;
+              }
+
+              const body = [
+                `Severity: **${finding.severity}**`,
+                ``,
+                `File: \`${finding.file}:${finding.line || 1}\``,
+                ``,
+                `Evidence:`,
+                `${finding.details}`,
+                ``,
+                `Recommended fix:`,
+                `${finding.recommendation}`,
+                ``,
+                `Fingerprint: \`${finding.fingerprint}\``,
+                `Source workflow run: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+              ].join('\n');
+
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+              });
+              core.info(`Created issue: ${title}`);
+            }

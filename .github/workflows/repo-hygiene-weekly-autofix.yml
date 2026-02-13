@@ -1,0 +1,72 @@
+name: Repo Hygiene (Weekly Autofix)
+
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: repo-hygiene-weekly-autofix
+  cancel-in-progress: false
+
+jobs:
+  weekly-autofix:
+    name: Weekly hygiene autofix PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run safe autofixes
+        run: |
+          node tools/hygiene-autofix.mjs
+          pnpm exec eslint . --fix || true
+
+      - name: Run hygiene audit snapshot
+        run: node tools/hygiene-audit.mjs --mode weekly-autofix --out-dir hygiene-report --fail-on NONE
+
+      - name: Typecheck after autofix
+        run: pnpm tsc --noEmit
+
+      - name: Upload hygiene report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hygiene-report-weekly-autofix
+          path: hygiene-report/
+          retention-days: 30
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/weekly-hygiene-autofix
+          title: "chore(hygiene): weekly repo hygiene autofix"
+          commit-message: "chore(hygiene): apply weekly safe autofixes"
+          body: |
+            Automated weekly hygiene autofix.
+
+            Included actions:
+            - normalize text/markdown whitespace and EOF newlines
+            - apply ESLint safe fixes
+            - attach hygiene snapshot artifact from workflow
+
+            Please review before merge.
+          delete-branch: true

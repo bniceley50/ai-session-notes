@@ -2,11 +2,11 @@
 
 [![E2E – Playwright](https://github.com/bniceley50/ai-session-notes/actions/workflows/e2e-playwright.yml/badge.svg)](https://github.com/bniceley50/ai-session-notes/actions/workflows/e2e-playwright.yml)
 
-Dead-simple clinical documentation MVP:
+Dead-simple legal intake documentation MVP:
 
-**session audio → transcript → AI-drafted provider note → provider edits → copy/export**
+**session audio → transcript → AI-drafted attorney matter note → attorney edits → copy/export**
 
-Goal: kill documentation time and make notes fast + consistent on normal laptops.
+Goal: reduce documentation time and make matter notes fast + consistent on normal laptops.
 
 ## Quick links
 
@@ -16,6 +16,7 @@ Goal: kill documentation time and make notes fast + consistent on normal laptops
 | CI workflow | `.github/workflows/e2e-playwright.yml` |
 | CI troubleshooting | `docs/CI-TROUBLESHOOTING.md` |
 | Testing guide | `docs/TESTING.md` |
+| Repo hygiene automation | `docs/REPO_HYGIENE.md` |
 | Security notes | `SECURITY.md` |
 
 ## Product shape (intentionally minimal)
@@ -65,14 +66,14 @@ Copy `.env.example` to `.env.local` and fill in values. Key groups:
 
 - Transcription provider is swappable (Whisper / Deepgram / etc.)
 - Server-only secrets stay on the server
-- Disposable data model — 24-hour auto-delete, not an EHR
+- Disposable data model — 24-hour auto-delete, not a case-management system
 - API routes that require server-only secrets import `server-only` and run in the Node.js runtime
 
 ## What's working (Current MVP)
 
 - Sessions list page (`/`)
 - Session workspace (`/sessions/[sessionId]`) — Audio Input, Transcript, AI Analysis, Structured Notes
-- Full pipeline: upload → transcribe (Whisper) → generate note (Claude) → export
+- Full pipeline: upload → transcribe (Whisper) → generate matter note (Claude) → export
 - Cancel/delete job with filesystem cleanup
 - E2E test covering the core loop (stub mode)
 - CI via GitHub Actions (Playwright on every PR)
@@ -81,3 +82,10 @@ Copy `.env.example` to `.env.local` and fill in values. Key groups:
 
 - Dates off by one day: parse `YYYY-MM-DD` as a local date (avoid `new Date("YYYY-MM-DD")`)
 - CI failures: see `docs/CI-TROUBLESHOOTING.md`
+
+## Repo hygiene automation
+
+- PR gate: `.github/workflows/repo-hygiene-pr.yml`
+- Nightly deep audit: `.github/workflows/repo-hygiene-nightly.yml`
+- Weekly autofix PR: `.github/workflows/repo-hygiene-weekly-autofix.yml`
+- OpenClaw summary command: `pnpm hygiene:openclaw:summary`
