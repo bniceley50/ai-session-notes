@@ -17,6 +17,7 @@ Goal: kill documentation time and make notes fast + consistent on normal laptops
 | CI troubleshooting | `docs/CI-TROUBLESHOOTING.md` |
 | Testing guide | `docs/TESTING.md` |
 | Security notes | `SECURITY.md` |
+| Penetration testing | `docs/PENTEST_PROMPT.md` |
 
 ## Product shape (intentionally minimal)
 
