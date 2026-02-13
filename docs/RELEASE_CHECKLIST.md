@@ -62,6 +62,53 @@ git status -sb
 git diff --stat
 ```
 
+## Scheduled cleanup (artifact TTL enforcement)
+
+Job artifacts are auto-deleted after 24 hours. The cleanup logic is fully
+implemented in `src/lib/jobs/purge.ts` (`purgeExpiredJobArtifacts()`), but
+it only runs when triggered. You must wire up an external scheduler.
+
+**Target endpoint:** `POST /api/jobs/runner`
+- Requires `Authorization: Bearer <JOBS_RUNNER_TOKEN>` header
+- Runs both cleanup (purge expired artifacts + stale session locks) and
+  queued job processing in a single call
+- Safe to call repeatedly (idempotent)
+
+### Option A: Vercel Cron (if deploying to Vercel)
+
+Add to `vercel.json`:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/jobs/runner",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}
+```
+
+Then set `JOBS_RUNNER_TOKEN` in Vercel environment variables. The runner
+endpoint validates the token from Vercel's cron headers automatically.
+
+### Option B: External scheduler (any host)
+
+Use cron, systemd timer, GitHub Actions schedule, or any HTTP scheduler:
+
+```bash
+# Every 15 minutes
+*/15 * * * * curl -s -X POST https://<deploy-url>/api/jobs/runner \
+  -H "Authorization: Bearer $JOBS_RUNNER_TOKEN"
+```
+
+### Checklist
+
+- [ ] Scheduler configured (Vercel cron or external)
+- [ ] `JOBS_RUNNER_TOKEN` set in deploy environment
+- [ ] Verify cleanup runs: check server logs for purge results after first trigger
+- [ ] Verify stale session locks are cleaned (locks older than 5 minutes)
+
 ## Deployment steps
 
 - [ ] Squash merge PR to `main`
