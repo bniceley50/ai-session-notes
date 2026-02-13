@@ -27,6 +27,11 @@ export type DualAuthResult =
  * instead of plain `requireSessionOwner`.
  */
 export type DualAuthOptions = SessionOwnerOptions & {
+  /**
+   * When true, missing/invalid Supabase auth session becomes a hard failure.
+   * Use this for production-only paths that must run under RLS identity.
+   */
+  requireSupabaseSession?: boolean;
   /** @internal Test-only override for the Supabase server client factory. */
   _supabaseFactory?: () => Promise<SupabaseClient>;
 };
@@ -38,7 +43,11 @@ export async function requireDualAuth(
   sessionIdParam: string,
   options: DualAuthOptions = {},
 ): Promise<DualAuthResult> {
-  const { _supabaseFactory, ...ownerOpts } = options;
+  const {
+    _supabaseFactory,
+    requireSupabaseSession = false,
+    ...ownerOpts
+  } = options;
 
   // ── 1. App JWT auth (ownership check) ───────────────────────────
   const auth = await requireSessionOwner(request, sessionIdParam, ownerOpts);
@@ -65,9 +74,28 @@ export async function requireDualAuth(
         };
       }
       supabaseClient = client;
+    } else if (requireSupabaseSession) {
+      return {
+        ok: false,
+        response: jsonError(
+          401,
+          "UNAUTHENTICATED",
+          "Supabase session required. Please sign in again.",
+        ),
+      };
     }
     // No Supabase session (dev-login flow) → supabaseClient stays null
   } catch {
+    if (requireSupabaseSession) {
+      return {
+        ok: false,
+        response: jsonError(
+          401,
+          "UNAUTHENTICATED",
+          "Supabase session required. Please sign in again.",
+        ),
+      };
+    }
     // Supabase client creation failed (e.g. missing env vars in dev) → degrade gracefully
     supabaseClient = null;
   }

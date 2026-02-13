@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/api/errors";
 import { requireDualAuth } from "@/lib/api/requireDualAuth";
+import { isProduction } from "@/lib/config";
 import { loadNote, saveNote, type NoteType } from "@/lib/supabase/notes";
 
 export const runtime = "nodejs";
@@ -32,7 +33,9 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   const { sessionId: sessionIdParam } = await context.params;
 
   // ── Auth: dual-auth (app JWT + Supabase session when available) ──
-  const auth = await requireDualAuth(request, sessionIdParam);
+  const auth = await requireDualAuth(request, sessionIdParam, {
+    requireSupabaseSession: isProduction(),
+  });
   if (!auth.ok) return auth.response;
 
   const { sessionId, practiceId, supabaseClient } = auth;
@@ -81,7 +84,9 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   const { sessionId: sessionIdParam } = await context.params;
 
   // ── Auth: dual-auth (app JWT + Supabase session when available) ──
-  const auth = await requireDualAuth(request, sessionIdParam);
+  const auth = await requireDualAuth(request, sessionIdParam, {
+    requireSupabaseSession: isProduction(),
+  });
   if (!auth.ok) return auth.response;
 
   const { sessionId, userId, practiceId, supabaseClient } = auth;

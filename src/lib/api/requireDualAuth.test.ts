@@ -114,6 +114,26 @@ describe("requireDualAuth", () => {
     }
   });
 
+  test("no Supabase session + requireSupabaseSession=true → 401", async () => {
+    const sessionId = `sess-dual-nosb-required-${Date.now()}`;
+    await writeSessionOwnership(sessionId, "user-alice");
+
+    const cookie = await makeAuthCookie({ sub: "user-alice", practiceId: "p-1" });
+    const request = new Request(
+      `http://localhost/api/sessions/${sessionId}/notes`,
+      { method: "GET", headers: { cookie } },
+    );
+
+    const result = await requireDualAuth(request, sessionId, {
+      requireSupabaseSession: true,
+      _supabaseFactory: noSessionFactory,
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.response.status, 401);
+    }
+  });
+
   // ── Supabase client creation throws → graceful degradation ────
   test("Supabase factory throws → ok with null supabaseClient", async () => {
     const sessionId = `sess-dual-throw-${Date.now()}`;
@@ -132,6 +152,26 @@ describe("requireDualAuth", () => {
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.supabaseClient, null);
+    }
+  });
+
+  test("Supabase factory throws + requireSupabaseSession=true → 401", async () => {
+    const sessionId = `sess-dual-throw-required-${Date.now()}`;
+    await writeSessionOwnership(sessionId, "user-alice");
+
+    const cookie = await makeAuthCookie({ sub: "user-alice" });
+    const request = new Request(
+      `http://localhost/api/sessions/${sessionId}/notes`,
+      { method: "GET", headers: { cookie } },
+    );
+
+    const result = await requireDualAuth(request, sessionId, {
+      requireSupabaseSession: true,
+      _supabaseFactory: throwingFactory,
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.response.status, 401);
     }
   });
 
