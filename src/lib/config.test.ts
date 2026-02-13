@@ -6,6 +6,12 @@
  */
 import assert from "node:assert/strict";
 import { describe, it, beforeEach, afterEach } from "node:test";
+import {
+  isDevLoginAllowed,
+  isDevelopment,
+  isProduction,
+  isSessionAutocreateAllowed,
+} from "@/lib/config";
 
 // ── We can't import config.ts directly because it has
 //    `import "server-only"` which only exists in the Next.js
@@ -347,5 +353,127 @@ describe("validateConfig", () => {
       () => validateConfig(),
       (err: Error) => err.message.includes("SESSION_TTL_SECONDS"),
     );
+  });
+});
+
+// ── Dev-flag guard tests (imported from @/lib/config) ─────────
+
+describe("isDevLoginAllowed", () => {
+  const ENV_KEYS = ["NODE_ENV", "ALLOW_DEV_LOGIN"] as const;
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of ENV_KEYS) saved[key] = process.env[key];
+  });
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  });
+
+  it("returns true when NODE_ENV=development AND ALLOW_DEV_LOGIN=1", () => {
+    (process.env as Record<string, string>).NODE_ENV = "development";
+    process.env.ALLOW_DEV_LOGIN = "1";
+    assert.equal(isDevLoginAllowed(), true);
+  });
+
+  it("returns false when NODE_ENV=production (even with flag set)", () => {
+    (process.env as Record<string, string>).NODE_ENV = "production";
+    process.env.ALLOW_DEV_LOGIN = "1";
+    assert.equal(isDevLoginAllowed(), false);
+  });
+
+  it("returns false when ALLOW_DEV_LOGIN is missing", () => {
+    (process.env as Record<string, string>).NODE_ENV = "development";
+    delete process.env.ALLOW_DEV_LOGIN;
+    assert.equal(isDevLoginAllowed(), false);
+  });
+
+  it("returns false when ALLOW_DEV_LOGIN=0", () => {
+    (process.env as Record<string, string>).NODE_ENV = "development";
+    process.env.ALLOW_DEV_LOGIN = "0";
+    assert.equal(isDevLoginAllowed(), false);
+  });
+
+  it("returns false when ALLOW_DEV_LOGIN=false", () => {
+    (process.env as Record<string, string>).NODE_ENV = "development";
+    process.env.ALLOW_DEV_LOGIN = "false";
+    assert.equal(isDevLoginAllowed(), false);
+  });
+
+  it("returns false when NODE_ENV=test", () => {
+    (process.env as Record<string, string>).NODE_ENV = "test";
+    process.env.ALLOW_DEV_LOGIN = "1";
+    assert.equal(isDevLoginAllowed(), false);
+  });
+});
+
+describe("isSessionAutocreateAllowed", () => {
+  const ENV_KEYS = ["NODE_ENV", "ALLOW_SESSION_AUTOCREATE"] as const;
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of ENV_KEYS) saved[key] = process.env[key];
+  });
+  afterEach(() => {
+    for (const key of ENV_KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  });
+
+  it("returns true when NODE_ENV=development AND flag=1", () => {
+    (process.env as Record<string, string>).NODE_ENV = "development";
+    process.env.ALLOW_SESSION_AUTOCREATE = "1";
+    assert.equal(isSessionAutocreateAllowed(), true);
+  });
+
+  it("returns true when NODE_ENV=test AND flag=1", () => {
+    (process.env as Record<string, string>).NODE_ENV = "test";
+    process.env.ALLOW_SESSION_AUTOCREATE = "1";
+    assert.equal(isSessionAutocreateAllowed(), true);
+  });
+
+  it("returns false when NODE_ENV=production (even with flag=1)", () => {
+    (process.env as Record<string, string>).NODE_ENV = "production";
+    process.env.ALLOW_SESSION_AUTOCREATE = "1";
+    assert.equal(isSessionAutocreateAllowed(), false);
+  });
+
+  it("returns false when flag is missing", () => {
+    (process.env as Record<string, string>).NODE_ENV = "development";
+    delete process.env.ALLOW_SESSION_AUTOCREATE;
+    assert.equal(isSessionAutocreateAllowed(), false);
+  });
+});
+
+describe("isDevelopment / isProduction", () => {
+  let savedNodeEnv: string | undefined;
+
+  beforeEach(() => {
+    savedNodeEnv = process.env.NODE_ENV;
+  });
+  afterEach(() => {
+    if (savedNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = savedNodeEnv;
+  });
+
+  it("isDevelopment returns true only for development", () => {
+    (process.env as Record<string, string>).NODE_ENV = "development";
+    assert.equal(isDevelopment(), true);
+    assert.equal(isProduction(), false);
+  });
+
+  it("isProduction returns true only for production", () => {
+    (process.env as Record<string, string>).NODE_ENV = "production";
+    assert.equal(isProduction(), true);
+    assert.equal(isDevelopment(), false);
+  });
+
+  it("both return false for test env", () => {
+    (process.env as Record<string, string>).NODE_ENV = "test";
+    assert.equal(isDevelopment(), false);
+    assert.equal(isProduction(), false);
   });
 });
