@@ -1,14 +1,22 @@
 import { NextResponse } from "next/server";
 import { readSessionFromCookieHeader } from "@/lib/auth/session";
+import { isDevelopment } from "@/lib/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Test endpoint to check session authentication
+ * Test endpoint to check session authentication.
  * GET /api/test-session
+ *
+ * Strict dev-only: returns 404 in production, test, and any non-development env.
+ * Future tests that need this endpoint should set NODE_ENV=development.
  */
 export async function GET(request: Request): Promise<Response> {
+  if (!isDevelopment()) {
+    return new Response("Not Found", { status: 404 });
+  }
+
   try {
     const session = await readSessionFromCookieHeader(request.headers.get("cookie"));
 
