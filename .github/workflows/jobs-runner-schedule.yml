@@ -1,0 +1,36 @@
+name: Jobs Runner Schedule
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: jobs-runner-schedule
+  cancel-in-progress: false
+
+jobs:
+  trigger-runner:
+    name: Trigger POST /api/jobs/runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate required secrets
+        env:
+          JOBS_RUNNER_ENDPOINT: ${{ secrets.JOBS_RUNNER_ENDPOINT }}
+          JOBS_RUNNER_TOKEN: ${{ secrets.JOBS_RUNNER_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${JOBS_RUNNER_ENDPOINT:-}" || { echo "Missing secret: JOBS_RUNNER_ENDPOINT"; exit 1; }
+          test -n "${JOBS_RUNNER_TOKEN:-}" || { echo "Missing secret: JOBS_RUNNER_TOKEN"; exit 1; }
+
+      - name: Invoke jobs runner
+        env:
+          JOBS_RUNNER_ENDPOINT: ${{ secrets.JOBS_RUNNER_ENDPOINT }}
+          JOBS_RUNNER_TOKEN: ${{ secrets.JOBS_RUNNER_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            -X POST "${JOBS_RUNNER_ENDPOINT}" \
+            -H "Authorization: Bearer ${JOBS_RUNNER_TOKEN}" \
+            -H "Content-Type: application/json"
