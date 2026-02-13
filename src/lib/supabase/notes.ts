@@ -36,13 +36,45 @@ export type Note = {
   created_at: string;
 };
 
+/** Context metadata for observability when resolveClient falls back to admin. */
+type ResolveClientMeta = {
+  sessionId?: string;
+  caller?: string;
+};
+
+/** Module-level flag — warn at most once per process to avoid log spam. */
+let _adminFallbackWarned = false;
+
+/**
+ * Reset the warn-once flag. Exported for testing only.
+ * @internal
+ */
+export function _resetAdminFallbackWarning(): void {
+  _adminFallbackWarned = false;
+}
+
 /**
  * Resolve the Supabase client to use for note CRUD.
  * Prefers a user-scoped client (RLS active) when provided;
  * falls back to the admin client.
+ *
+ * In production, logs a warning (once per process) when falling back
+ * to admin — this bypasses RLS and should only happen in dev-login flow.
  */
-function resolveClient(userClient: SupabaseClient | null | undefined): SupabaseClient {
+function resolveClient(
+  userClient: SupabaseClient | null | undefined,
+  meta?: ResolveClientMeta,
+): SupabaseClient {
   if (userClient) return userClient;
+
+  if (process.env.NODE_ENV === "production" && !_adminFallbackWarned) {
+    _adminFallbackWarned = true;
+    console.warn("[notes] Admin client fallback used", {
+      sessionId: meta?.sessionId,
+      caller: meta?.caller,
+    });
+  }
+
   return requireAdminClient();
 }
 
@@ -58,7 +90,7 @@ export async function loadNote(
   noteType: NoteType,
   client?: SupabaseClient | null,
 ): Promise<Note | null> {
-  const supabase = resolveClient(client);
+  const supabase = resolveClient(client, { sessionId, caller: "loadNote" });
 
   const { data, error } = await supabase
     .from("notes")
@@ -152,7 +184,7 @@ export async function saveNote(
   await ensureOrgAndSession(sessionId, orgId, userId);
 
   // Note CRUD uses the caller-provided client (user-scoped when available)
-  const supabase = resolveClient(client);
+  const supabase = resolveClient(client, { sessionId, caller: "saveNote" });
 
   // Step 1: Check if note exists for this org + session + type
   const { data: existing } = await supabase
@@ -209,7 +241,7 @@ export async function deleteNote(
   noteType: NoteType,
   client?: SupabaseClient | null,
 ): Promise<void> {
-  const supabase = resolveClient(client);
+  const supabase = resolveClient(client, { sessionId, caller: "deleteNote" });
 
   const { error } = await supabase
     .from("notes")
