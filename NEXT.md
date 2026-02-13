@@ -2,45 +2,47 @@
 
 ## Reality
 
-Verified shipped items:
+Verified shipped items (as of 2026-02-12):
 
-- Sessions list UI.
 - Session detail UI (Transcript + Note editor + Copy/Export).
-- Notes persist locally per session (localStorage).
-- Date parsing fix for YYYY-MM-DD (local helper) + safe separator escape.
-- Next.js upgraded to 16.1.6; pnpm audit clean.
-- Async params fix for /sessions/[sessionId] route.
+- Notes persist in Supabase `notes` table (keyed by session id + note type).
+- Audio upload (WebM) with server-side validation.
+- Job pipeline: upload -> Whisper transcription -> Claude note drafting -> file writes.
+- Chunked transcription for audio >24MB (FFmpeg splitting + overlap stitching).
+- AI kill switch (`AI_ENABLE_REAL_APIS`) and explicit stub mode (`AI_ENABLE_STUB_APIS`).
+- Job runner (`POST /api/jobs/runner`) with token auth and purge logic.
+- Cookie-based session auth with middleware enforcement on all data routes.
+- Health endpoint (`GET /api/health`) for liveness probes.
+- Config validation at startup (`instrumentation.ts`).
+- Export: copy-to-clipboard and .docx download.
+- 19 test files covering auth guards, routes, jobs, config, health, export, pipeline.
 
-Unclassified (present but not proof of behavior):
+## Next smallest steps
 
-- Env skeleton exists.
-- Verification text present.
+1) **Scheduled cleanup wiring**
+   - Wire `POST /api/jobs/runner` to a scheduler (Vercel cron or external) so TTL-based purge runs automatically.
+   - Currently purge only runs on manual trigger or runner invocation.
 
-## Next smallest step
+2) **Concurrent job guard**
+   - Prevent multiple active jobs per session (race-safe with session-level lock).
+   - Block job creation when session already has a `queued` or `running` job.
 
-1) SSO sign-in (Cognito federation)
-   - Add Cognito Hosted UI sign-in.
-   - Support Microsoft 365 (Entra ID) and Google Workspace (OIDC/SAML).
-   - Add practiceId scoping and admin/clinician roles.
+3) **Admin client fallback hardening**
+   - Add production-only warning when notes service falls back to admin Supabase client (bypasses RLS).
+   - Audit all callers to ensure user-scoped client is passed.
 
-2) Temporary job store + TTL purge + Delete now
-   - Create job record with expiresAt (default now+24h).
-   - Store audio + transcript + draft in S3 under jobs/{jobId}/.
-   - Purge worker deletes expired jobs; "Delete now" API purges immediately.
-   - Add admin setting to reduce TTL, including delete immediately after export.
+4) **Export polish**
+   - Verify .docx export formatting matches EHR-friendly structure.
+   - Add .txt plain-text export option.
 
-3) Wire the end-to-end happy path
-   - Upload audio (start with upload; add in-browser recording next).
-   - Transcribe (Transcribe Medical).
-   - Draft note (Bedrock) for one note type first (SOAP), then expand.
-   - Render editable draft and export:
-     - EHR-friendly text
-     - PDF (client-side print/export)
+5) **Lock file cleanup**
+   - Stale `.lock` files from chunked transcription persist after job completion.
+   - Either add cleanup logic or document as known limitation with manual cleanup steps.
 
 ## Verification
 
 After each change:
 
-- .\tools\gate.cmd /all
-- git status -sb
-- git diff --stat
+```bash
+pnpm tsc --noEmit && pnpm lint && pnpm test
+```

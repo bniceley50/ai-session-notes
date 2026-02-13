@@ -2,7 +2,7 @@
 
 ## Scope
 
-AI Session Notes MVP: record a session (or upload audio) -> transcribe -> select note type (SOAP/DAP/BIRP/GIRP/Intake/Discharge) -> draft note -> human edits/approves -> copy/export. The system is NOT the system of record (the EHR is).
+AI Session Notes MVP: upload audio -> transcribe -> select note type (SOAP/DAP/BIRP/GIRP/Intake/Discharge) -> draft note -> human edits/approves -> copy/export. The system is NOT the system of record (the EHR is).
 
 ## Non-goals
 
@@ -13,10 +13,11 @@ AI Session Notes MVP: record a session (or upload audio) -> transcribe -> select
 ## System boundary
 
 - Web UI: Next.js app used by clinicians.
-- Backend API + workers: runs on AWS and performs temporary processing.
+- Backend API: Next.js API routes (Node.js runtime).
 - Cloud processors:
-  - AWS Transcribe Medical for transcription.
-  - Amazon Bedrock for note drafting.
+  - OpenAI Whisper API for transcription.
+  - Anthropic Claude API for note drafting.
+- Database: Supabase (PostgreSQL with Row Level Security).
 
 ## Data handling
 
@@ -27,41 +28,47 @@ Treat audio, transcripts, and draft notes as sensitive (PHI in real-world use).
 All processing artifacts live in a temporary job store and are deleted automatically.
 
 - Job artifacts include:
-  - audio file
-  - transcript
-  - draft note (text and/or structured JSON)
+  - audio file (filesystem)
+  - transcript (filesystem)
+  - draft note (filesystem + Supabase `notes` table)
 - Default TTL: 24 hours
-- Admin can reduce TTL (including delete immediately after export)
 - "Delete now" is always available in the UI and triggers immediate purge
 
 ### Deletion enforcement
 
-Target implementation (must be true before claiming enforcement in production):
+Current implementation:
 
-- Purge worker deletes expired jobs based on an expiresAt timestamp.
-- S3 objects are deleted by prefix for the job (audio/transcript/draft).
-- DynamoDB job records expire via TTL.
-- S3 lifecycle deletion is configured as a backstop for missed objects.
+- Purge logic in `src/lib/jobs/purge.ts` deletes expired job directories based on `createdAt` + TTL.
+- Filesystem artifacts are deleted by job directory (audio/transcript/draft/status/lock files).
+- Empty session directories are cleaned up after all jobs are deleted.
+- Purge is triggered by `POST /api/jobs/runner` (token-authenticated, designed for scheduled invocation) and `POST /api/jobs/purge` (admin-authenticated, manual trigger).
+- In-memory job store (`src/lib/jobs/store.ts`) has opportunistic cleanup on access and explicit `purgeExpired()`.
+- **Not yet automated**: No scheduler is wired up to call the runner endpoint on a recurring basis. This is a known gap — artifacts currently accumulate until manual cleanup or runner invocation.
 
 ## Authentication and authorization
 
-- SSO only.
-- Authentication is handled via Amazon Cognito federation (OIDC or SAML) to:
-  - Microsoft 365 / Entra ID
-  - Google Workspace
-- Multi-practice ready: every request is scoped to a practiceId and userId.
+- Cookie-based session auth (signed JWT in httpOnly cookie).
+- Session tokens signed with `AUTH_COOKIE_SECRET` (32+ byte random secret).
+- Multi-practice ready: every request is scoped to a `practiceId` and `userId`.
+- Middleware (`middleware.ts` at project root) enforces authentication on all routes except:
+  - `GET /api/health` (liveness probe, exact match)
+  - `/api/auth/*` (auth flow endpoints, prefix match)
+  - `/_next/*` (Next.js static assets, prefix match)
+  - Static file extensions (`.js`, `.css`, `.png`, `.ico`, etc.)
+  - `/login`, `/favicon.ico`, `/robots.txt`, `/sitemap.xml` (exact match)
 
 Authorization rules (MVP):
 
-- Users can only access jobs belonging to their practiceId.
-- Only admins can change practice-level settings (TTL policy, allowed note types).
-- Clinicians can create jobs, view results for their jobs, export, and purge.
+- Users can only access jobs belonging to their `practiceId` (Supabase RLS + `is_org_member()` function).
+- Note CRUD uses user-scoped Supabase client when available (RLS active); falls back to admin client for bootstrap operations.
+- `POST /api/jobs/runner` requires `JOBS_RUNNER_TOKEN` (prevents unauthorized API spending).
 
 ## Secrets and credentials
 
 - No long-lived secrets in the client.
-- AWS access uses IAM roles for compute (least privilege).
-- If any server-only keys exist (e.g., legacy integrations), they must never be exposed to the client or logs.
+- Server-only API keys: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `JOBS_RUNNER_TOKEN`.
+- `AUTH_COOKIE_SECRET` used for signing session cookies.
+- All secrets loaded via environment variables, validated at startup by `src/lib/config.ts`.
 
 ## Logging hygiene
 
@@ -71,9 +78,9 @@ Authorization rules (MVP):
 
 ## Transport and encryption
 
-- TLS for all client <-> backend traffic.
-- Encrypt temporary storage at rest (S3 + KMS).
-- Restrict S3 access to backend roles only.
+- TLS for all client <-> backend traffic (HTTPS enforced by hosting).
+- Supabase connections use TLS.
+- Filesystem artifacts are stored on the application server (not encrypted at rest by default — encryption depends on hosting provider's disk encryption).
 
 ## Dependency hygiene
 
@@ -82,7 +89,7 @@ Authorization rules (MVP):
   - pnpm audit
   - Dependabot (recommended)
 
-As of 2026-01-30:
+As of 2026-02-12:
 - Next.js: 16.1.6
 - pnpm audit: clean
 
@@ -97,5 +104,6 @@ Update this policy when any of the following changes:
 - Adding session history / long-term storage.
 - Expanding roles beyond admin/clinician.
 - Changing TTL defaults upward.
-- Moving any PHI processing to non-AWS vendors.
+- Moving to new AI/cloud processors.
 - Enabling public SaaS / internet exposure beyond a single practice rollout.
+- Adding rich text rendering of AI-generated content (XSS surface expansion).
