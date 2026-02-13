@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 concurrency:
   group: repo-hygiene-weekly-autofix
@@ -55,8 +56,11 @@ jobs:
           retention-days: 30
 
       - name: Create pull request
+        id: create_pr
+        continue-on-error: true
         uses: peter-evans/create-pull-request@v7
         with:
+          token: ${{ secrets.HYGIENE_PR_TOKEN || github.token }}
           branch: chore/weekly-hygiene-autofix
           title: "chore(hygiene): weekly repo hygiene autofix"
           commit-message: "chore(hygiene): apply weekly safe autofixes"
@@ -85,3 +89,51 @@ jobs:
 
             Please review before merge.
           delete-branch: true
+
+      - name: Report PR creation limitations
+        if: steps.create_pr.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "Repo hygiene weekly autofix could not open a PR";
+            const body = [
+              "The weekly autofix job completed, but PR creation failed.",
+              "",
+              "Likely cause: repository setting blocks GitHub Actions from creating PRs.",
+              "",
+              "To enable bot PRs:",
+              "1. Repo Settings -> Actions -> General",
+              "2. Workflow permissions: Read and write",
+              "3. Enable: Allow GitHub Actions to create and approve pull requests",
+              "",
+              "Alternative: set `HYGIENE_PR_TOKEN` secret with a PAT that has `contents` and `pull_requests` scopes."
+            ].join("\n");
+            const { owner, repo } = context.repo;
+            const issues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "open",
+              per_page: 100
+            });
+            const existing = issues.data.find((i) => i.title === title);
+            if (existing) {
+              core.info(`Issue already open: #${existing.number}`);
+              return;
+            }
+            try {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+                labels: ["hygiene", "automation"]
+              });
+            } catch (error) {
+              core.warning(`Issue labels unavailable, creating unlabeled issue: ${error.message}`);
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body
+              });
+            }
