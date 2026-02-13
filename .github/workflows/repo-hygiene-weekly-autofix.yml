@@ -60,6 +60,21 @@ jobs:
           branch: chore/weekly-hygiene-autofix
           title: "chore(hygiene): weekly repo hygiene autofix"
           commit-message: "chore(hygiene): apply weekly safe autofixes"
+          add-paths: |
+            .env.example
+            README.md
+            docs/**
+            scripts/**
+            src/**
+            tests/**
+            tools/**
+            components.json
+            eslint.config.mjs
+            next.config.ts
+            package.json
+            pnpm-lock.yaml
+            postcss.config.mjs
+            tsconfig.json
           body: |
             Automated weekly hygiene autofix.
 
