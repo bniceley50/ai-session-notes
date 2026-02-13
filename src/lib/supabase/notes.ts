@@ -1,20 +1,20 @@
 /**
- * Notes service - server-only, uses service role key
+ * Notes service - server-only
  *
- * WARNING: This uses service role (bypasses RLS). Tenant isolation is enforced
- * manually via org_id checks. This is a temporary bridge until Cognito tokens
- * are wired to Supabase (Step 2).
- *
- * Security model:
- * - API route validates session cookie (readSessionFromCookieHeader)
- * - practiceId from session → org_id (assumes direct mapping for MVP)
- * - This service enforces org_id in all queries
- * - Upgrade to real RLS in Step 2 when user tokens flow to Supabase
+ * Security model (PR2):
+ * - Note CRUD uses a caller-provided Supabase client. When the caller passes
+ *   a user-scoped client (from `createSupabaseServerClient`), RLS policies
+ *   enforce tenant isolation automatically via `is_org_member(org_id)`.
+ * - When no user-scoped client is available (dev-login flow), the caller
+ *   passes the admin client and org_id WHERE clauses provide isolation.
+ * - Bootstrap writes (ensureOrgAndSession) always use the admin client
+ *   because the user may not yet be an org member (chicken-and-egg).
  */
 
 import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { supabaseUrl, supabaseServiceRoleKey } from "@/lib/config";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 function requireAdminClient() {
   const url = supabaseUrl();
@@ -37,15 +37,28 @@ export type Note = {
 };
 
 /**
- * Load the most recent note for a session + note type
- * Returns null if no note exists yet
+ * Resolve the Supabase client to use for note CRUD.
+ * Prefers a user-scoped client (RLS active) when provided;
+ * falls back to the admin client.
+ */
+function resolveClient(userClient: SupabaseClient | null | undefined): SupabaseClient {
+  if (userClient) return userClient;
+  return requireAdminClient();
+}
+
+/**
+ * Load the most recent note for a session + note type.
+ * Returns null if no note exists yet.
+ *
+ * @param client - User-scoped Supabase client (RLS) or null (admin fallback).
  */
 export async function loadNote(
   sessionId: string,
   orgId: string,
-  noteType: NoteType
+  noteType: NoteType,
+  client?: SupabaseClient | null,
 ): Promise<Note | null> {
-  const supabase = requireAdminClient();
+  const supabase = resolveClient(client);
 
   const { data, error } = await supabase
     .from("notes")
@@ -67,63 +80,79 @@ export async function loadNote(
 /**
  * Ensure the org and session rows exist in Supabase before inserting a note.
  *
+ * ALWAYS uses admin client — the user may not yet be an org member,
+ * so RLS would block the insert (chicken-and-egg for bootstrapping).
+ *
  * The notes table has FK constraints:
  *   notes.org_id      → orgs.id
  *   (session_id, org_id) → sessions(id, org_id)
- *
- * During the MVP flow the session row may not yet exist in Supabase when the
- * NoteEditor autosave fires (it can race ahead of the audio-upload endpoint
- * that normally creates the session row). This helper does idempotent upserts
- * so the FK is always satisfied.
  */
 async function ensureOrgAndSession(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
   sessionId: string,
-  orgId: string
+  orgId: string,
+  userId?: string,
 ): Promise<void> {
+  const admin = requireAdminClient();
+
   // 1. Ensure org exists (idempotent)
-  await supabase
+  await admin
     .from("orgs")
     .upsert({ id: orgId, name: "Default Org" }, { onConflict: "id" })
     .select()
     .single();
 
-  // 2. Ensure session exists (idempotent)
-  await supabase
+  // 2. Ensure session exists (idempotent), with created_by when available
+  const sessionRow: Record<string, unknown> = {
+    id: sessionId,
+    org_id: orgId,
+    label: "New Session",
+    status: "active",
+  };
+  if (userId) {
+    sessionRow.created_by = userId;
+  }
+
+  await admin
     .from("sessions")
-    .upsert(
-      {
-        id: sessionId,
-        org_id: orgId,
-        label: "New Session",
-        status: "active",
-      },
-      { onConflict: "id" }
-    )
+    .upsert(sessionRow, { onConflict: "id" })
     .select()
     .single();
+
+  // 3. Ensure profile exists so RLS is_org_member() succeeds for this user
+  if (userId) {
+    await admin
+      .from("profiles")
+      .upsert({ user_id: userId, org_id: orgId }, { onConflict: "user_id,org_id" })
+      .select()
+      .single();
+  }
 }
 
 /**
- * Save (upsert) a note for a session + note type
- * Last-write-wins semantics (no conflict resolution)
+ * Save (upsert) a note for a session + note type.
+ * Last-write-wins semantics (no conflict resolution).
  *
  * Uses manual 2-query pattern to ensure org_id is included in conflict check.
  * CRITICAL: We cannot use Supabase's onConflict because it doesn't allow
  * org_id in the conflict target (not part of the unique constraint), which
  * would allow cross-org clobbering if sessionIds collide.
+ *
+ * @param client - User-scoped Supabase client (RLS) or null (admin fallback).
+ * @param userId - Auth user ID, used for created_by and profile bootstrapping.
  */
 export async function saveNote(
   sessionId: string,
   orgId: string,
   noteType: NoteType,
-  content: string
+  content: string,
+  client?: SupabaseClient | null,
+  userId?: string,
 ): Promise<Note> {
-  const supabase = requireAdminClient();
+  // Bootstrap uses admin client (chicken-and-egg: user may not be member yet)
+  await ensureOrgAndSession(sessionId, orgId, userId);
 
-  // Ensure org + session rows exist so FK constraints are satisfied.
-  // This is a no-op when rows already exist (upsert with onConflict).
-  await ensureOrgAndSession(supabase, sessionId, orgId);
+  // Note CRUD uses the caller-provided client (user-scoped when available)
+  const supabase = resolveClient(client);
 
   // Step 1: Check if note exists for this org + session + type
   const { data: existing } = await supabase
@@ -170,14 +199,17 @@ export async function saveNote(
 }
 
 /**
- * Delete a note (for Clear button)
+ * Delete a note (for Clear button).
+ *
+ * @param client - User-scoped Supabase client (RLS) or null (admin fallback).
  */
 export async function deleteNote(
   sessionId: string,
   orgId: string,
-  noteType: NoteType
+  noteType: NoteType,
+  client?: SupabaseClient | null,
 ): Promise<void> {
-  const supabase = requireAdminClient();
+  const supabase = resolveClient(client);
 
   const { error } = await supabase
     .from("notes")
