@@ -29,6 +29,8 @@ pnpm hygiene:openclaw:summary
 - PR: on every pull request to `main`
 - Nightly: daily deep audit
 - Weekly autofix: weekly automated cleanup PR
+  - If your repo disables bot PR creation, the workflow still succeeds and opens an issue with enablement steps.
+  - Optional: set `HYGIENE_PR_TOKEN` (PAT with `contents` + `pull_requests`) to allow PR creation without changing repo-wide Actions policy.
 
 ## OpenClaw test flow
 
