@@ -8,6 +8,7 @@ import { safePathSegment } from "@/lib/jobs/artifacts";
 import { readAudioMetadata } from "@/lib/jobs/audio";
 import { runJobPipeline, type PipelineMode } from "@/lib/jobs/pipeline";
 import type { ClinicalNoteType } from "@/lib/jobs/claude";
+import { acquireSessionLock, releaseSessionLock, findActiveJobForSession } from "@/lib/jobs/sessionLock";
 import { createJob } from "@/lib/jobs/store";
 import {
   getJobDir,
@@ -96,66 +97,81 @@ export async function POST(request: Request): Promise<Response> {
       ? (payload.mode as PipelineMode)
       : "full";
 
-  // ── Create the job ───────────────────────────────────────────
-  const jobId = `job_${randomUUID()}`;
-  const now = new Date().toISOString();
-  const status: JobStatusFile = {
-    jobId,
-    sessionId,
-    status: "queued",
-    stage: mode === "analyze" ? "draft" : "transcribe",
-    progress: 0,
-    updatedAt: now,
-    errorMessage: null,
-  };
-
-  await writeJobIndex(jobId, sessionId);
-  await writeJobStatus(status);
-
-  const jobDir = getJobDir(sessionId, jobId);
-  await fs.mkdir(jobDir, { recursive: true });
-
-  const jobMeta = {
-    jobId,
-    sessionId,
-    ...(isTextMode ? { inputMode: "text" } : { audioArtifactId }),
-    createdAt: now,
-  };
-  await fs.writeFile(path.join(jobDir, "job.json"), JSON.stringify(jobMeta, null, 2), "utf8");
-
-  // ── Text mode: pre-write transcript so analyze-only pipeline can load it
-  if (isTextMode) {
-    const formattedTranscript = `Text Summary\n\nSubmitted: ${now}\n\n---\n\n${transcriptText}\n`;
-
-    const writeTextFile = async (filePath: string, content: string) => {
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, content, "utf8");
-    };
-
-    // Write both job-level and session-level transcript (matches pipeline convention)
-    await writeTextFile(getJobTranscriptPath(sessionId, jobId), formattedTranscript);
-    await writeTextFile(getSessionTranscriptPath(sessionId), formattedTranscript);
+  // ── Concurrent job guard (session lock) ─────────────────────
+  const lockAcquired = await acquireSessionLock(sessionId);
+  if (!lockAcquired) {
+    return jsonError(409, "CONFLICT", "Session already has an active job.");
   }
 
   try {
-    createJob(practiceId, sessionId, jobId);
-  } catch {
-    // Best-effort compatibility with legacy job routes.
-  }
+    const activeJobId = await findActiveJobForSession(sessionId);
+    if (activeJobId) {
+      return jsonError(409, "CONFLICT", "Session already has an active job.");
+    }
 
-  setTimeout(() => {
-    void runJobPipeline({
-      sessionId,
+    // ── Create the job ────────────────────────────────────────
+    const jobId = `job_${randomUUID()}`;
+    const now = new Date().toISOString();
+    const status: JobStatusFile = {
       jobId,
-      artifactId: isTextMode ? "" : audioArtifactId,
-      mode,
-      noteType,
-    });
-  }, 0);
+      sessionId,
+      status: "queued",
+      stage: mode === "analyze" ? "draft" : "transcribe",
+      progress: 0,
+      updatedAt: now,
+      errorMessage: null,
+    };
 
-  return NextResponse.json({
-    jobId,
-    sessionId,
-    statusUrl: `/api/jobs/${jobId}`,
-  });
+    await writeJobIndex(jobId, sessionId);
+    await writeJobStatus(status);
+
+    const jobDir = getJobDir(sessionId, jobId);
+    await fs.mkdir(jobDir, { recursive: true });
+
+    const jobMeta = {
+      jobId,
+      sessionId,
+      ...(isTextMode ? { inputMode: "text" } : { audioArtifactId }),
+      createdAt: now,
+    };
+    await fs.writeFile(path.join(jobDir, "job.json"), JSON.stringify(jobMeta, null, 2), "utf8");
+
+    // ── Text mode: pre-write transcript so analyze-only pipeline can load it
+    if (isTextMode) {
+      const formattedTranscript = `Text Summary\n\nSubmitted: ${now}\n\n---\n\n${transcriptText}\n`;
+
+      const writeTextFile = async (filePath: string, content: string) => {
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.writeFile(filePath, content, "utf8");
+      };
+
+      // Write both job-level and session-level transcript (matches pipeline convention)
+      await writeTextFile(getJobTranscriptPath(sessionId, jobId), formattedTranscript);
+      await writeTextFile(getSessionTranscriptPath(sessionId), formattedTranscript);
+    }
+
+    try {
+      createJob(practiceId, sessionId, jobId);
+    } catch {
+      // Best-effort compatibility with legacy job routes.
+    }
+
+    setTimeout(() => {
+      void runJobPipeline({
+        sessionId,
+        jobId,
+        artifactId: isTextMode ? "" : audioArtifactId,
+        mode,
+        noteType,
+      });
+    }, 0);
+
+    return NextResponse.json({
+      jobId,
+      sessionId,
+      statusUrl: `/api/jobs/${jobId}`,
+    });
+  } finally {
+    await releaseSessionLock(sessionId);
+  }
 }

@@ -52,6 +52,38 @@ const sessionHasAnyJobs = async (sessionId: string): Promise<boolean> => {
   }
 };
 
+/** Stale lock threshold: 5 minutes. Job creation takes seconds. */
+const STALE_LOCK_MS = 5 * 60 * 1000;
+
+/**
+ * Remove stale session.lock files that were left behind by crashed processes.
+ * Called during purge cycle. Only removes locks older than STALE_LOCK_MS.
+ */
+async function cleanStaleLocks(nowMs: number): Promise<number> {
+  let cleaned = 0;
+  const sessionsBase = path.resolve(ARTIFACTS_ROOT, "sessions");
+  let sessionDirs: string[];
+  try {
+    sessionDirs = await fs.readdir(sessionsBase);
+  } catch {
+    return 0;
+  }
+
+  for (const dir of sessionDirs) {
+    const lockPath = path.join(sessionsBase, dir, "session.lock");
+    try {
+      const stat = await fs.stat(lockPath);
+      if (stat.mtimeMs + STALE_LOCK_MS <= nowMs) {
+        await fs.rm(lockPath, { force: true });
+        cleaned += 1;
+      }
+    } catch {
+      // Lock file doesn't exist — expected for most sessions
+    }
+  }
+  return cleaned;
+}
+
 export async function purgeExpiredJobArtifacts(nowMs = Date.now()): Promise<PurgeResult> {
   const result: PurgeResult = {
     scannedJobs: 0,
@@ -93,6 +125,9 @@ export async function purgeExpiredJobArtifacts(nowMs = Date.now()): Promise<Purg
       // best effort cleanup only
     }
   }
+
+  // Clean up stale session locks from crashed processes
+  await cleanStaleLocks(nowMs);
 
   return result;
 }

@@ -62,3 +62,43 @@ test("keeps session directory when non-expired jobs remain", async () => {
   await fs.access(path.join(sessionsDir, sessionId));
   await fs.access(path.join(indexDir, `${newJobId}.json`));
 });
+
+test("cleans stale session.lock files during purge", async () => {
+  const sessionId = `sess-stalelock-${Date.now()}`;
+  const sessionDir = path.join(sessionsDir, sessionId);
+  const lockPath = path.join(sessionDir, "session.lock");
+
+  // Create a session dir with a stale lock file
+  await fs.mkdir(sessionDir, { recursive: true });
+  await fs.writeFile(lockPath, '{"lockedAt":"old","pid":1}', "utf8");
+
+  // Set the lock file mtime to 10 minutes ago (well past 5-minute threshold)
+  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+  await fs.utimes(lockPath, tenMinAgo, tenMinAgo);
+
+  await purgeExpiredJobArtifacts();
+
+  // Lock file should have been cleaned up
+  await assert.rejects(fs.access(lockPath), "stale lock should be removed");
+
+  // Clean up session dir
+  await fs.rm(sessionDir, { recursive: true, force: true });
+});
+
+test("keeps fresh session.lock files during purge", async () => {
+  const sessionId = `sess-freshlock-${Date.now()}`;
+  const sessionDir = path.join(sessionsDir, sessionId);
+  const lockPath = path.join(sessionDir, "session.lock");
+
+  // Create a session dir with a fresh lock file (just created = mtime is now)
+  await fs.mkdir(sessionDir, { recursive: true });
+  await fs.writeFile(lockPath, '{"lockedAt":"now","pid":1}', "utf8");
+
+  await purgeExpiredJobArtifacts();
+
+  // Fresh lock file should NOT be removed
+  await fs.access(lockPath); // should not throw
+
+  // Clean up
+  await fs.rm(sessionDir, { recursive: true, force: true });
+});
