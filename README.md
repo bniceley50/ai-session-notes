@@ -18,6 +18,7 @@ Goal: reduce documentation time and make matter notes fast + consistent on norma
 | Testing guide | `docs/TESTING.md` |
 | Repo hygiene automation | `docs/REPO_HYGIENE.md` |
 | Security notes | `SECURITY.md` |
+| Penetration testing | `docs/PENTEST_PROMPT.md` |
 
 ## Product shape (intentionally minimal)
 

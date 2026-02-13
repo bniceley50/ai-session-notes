@@ -93,6 +93,10 @@ As of 2026-02-12:
 - Next.js: 16.1.6
 - pnpm audit: clean
 
+## Security Testing
+
+For penetration testing guidance: see `docs/PENTEST_PROMPT.md` — a comprehensive meta prompt covering authentication, authorization, PHI protection, AI/LLM security, and all OWASP Top 10 vulnerabilities.
+
 ## Reporting
 
 Security issues: open a private issue or contact the maintainer.
