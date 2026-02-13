@@ -18,6 +18,11 @@ This project uses Wednesday Solutions agent skills for consistent code quality a
     <description>Technical development guidelines for Wednesday Solutions projects. Enforces import ordering, complexity limits, naming conventions, TypeScript best practices, and code quality standards for React/Next.js applications.</description>
     <location>.wednesday\skills\wednesday-dev\SKILL.md</location>
   </skill>
+  <skill>
+    <name>solo-founder-workflow</name>
+    <description>Enforces a disciplined solo-founder build workflow: slice-zero safety rails, scope lock, PR structure, contract-aware testing, and merge readiness.</description>
+    <location>.wednesday\skills\solo-founder-workflow\SKILL.md</location>
+  </skill>
 </available_skills>
 
 ### How to Use Skills
@@ -27,10 +32,12 @@ When working on tasks, check if a relevant skill is available above. To activate
 For example:
 - For code quality and development guidelines, read: .wednesday/skills/wednesday-dev/SKILL.md
 - For design and UI component guidelines, read: .wednesday/skills/wednesday-design/SKILL.md
+- For PR planning and build discipline, read: .wednesday/skills/solo-founder-workflow/SKILL.md
 
 ### Important
 
 - The wednesday-design skill contains 492+ approved UI components. Always check the component library before creating custom components.
 - The wednesday-dev skill enforces import ordering, complexity limits (max 8), and naming conventions.
+- The solo-founder-workflow skill should be applied before implementation planning for any new feature or PR.
 
 <!-- WEDNESDAY_SKILLS_END -->
