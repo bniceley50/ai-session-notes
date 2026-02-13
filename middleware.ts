@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { readSessionFromCookieHeader } from "@/lib/auth/session";
 
 const PUBLIC_PREFIXES = ["/api/auth", "/_next"];
-const PUBLIC_PATHS = ["/login", "/favicon.ico", "/robots.txt", "/sitemap.xml"];
+const PUBLIC_PATHS = ["/login", "/favicon.ico", "/robots.txt", "/sitemap.xml", "/api/health"];
 const PUBLIC_EXTENSIONS = [
   ".png",
   ".jpg",
@@ -22,7 +22,7 @@ const PUBLIC_EXTENSIONS = [
   ".eot",
 ];
 
-const isPublicPath = (pathname: string): boolean => {
+export const isPublicPath = (pathname: string): boolean => {
   if (PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return true;
   if (PUBLIC_PATHS.includes(pathname)) return true;
   return PUBLIC_EXTENSIONS.some((ext) => pathname.endsWith(ext));

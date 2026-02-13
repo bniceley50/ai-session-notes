@@ -14,16 +14,18 @@
 ## Pre-release gate
 
 ```bash
-# Run all three from repo root
+# Run all from repo root
 pnpm tsc --noEmit
-pnpm exec eslint src/ tests/
+pnpm lint
+pnpm test
 pnpm exec playwright test
 ```
 
 - [ ] Branch is up to date with `main`
 - [ ] `pnpm tsc --noEmit` — clean
-- [ ] `pnpm exec eslint src/ tests/` — 0 errors
-- [ ] `pnpm exec playwright test` — all specs passing
+- [ ] `pnpm lint` — 0 errors
+- [ ] `pnpm test` — all unit tests passing
+- [ ] `pnpm exec playwright test` — all e2e specs passing
 - [ ] CI green on the target merge commit
 
 ## Functional smoke test (core loop)
@@ -38,6 +40,13 @@ Run manually against the deploy target (staging or production):
 - [ ] Export works (copy / download)
 - [ ] Cancel mid-run — UI resets, no lingering state
 - [ ] Delete completed job — artifacts cleaned up, UI resets
+
+## Runtime dependencies
+
+- [ ] **FFmpeg** on PATH — required for chunked transcription (audio >24MB)
+  ```bash
+  ffmpeg -version   # should print version info
+  ```
 
 ## Config / security checks
 
@@ -59,7 +68,12 @@ git diff --stat
 - [ ] Verify CI passes on merged commit
 - [ ] Create Git tag: `git tag v0.x.x && git push origin v0.x.x`
 - [ ] Create GitHub release with scope summary and notable changes
-- [ ] Post-deploy health check — app loads, login works, no console errors
+- [ ] Post-deploy health check:
+  ```bash
+  curl -s https://<deploy-url>/api/health | jq .
+  # Expected: {"status":"ok","timestamp":"..."}
+  ```
+- [ ] App loads, login works, no console errors
 
 ## Rollback plan
 
@@ -83,3 +97,10 @@ git push origin main
 - [ ] Monitor CI and error reports for 30–60 minutes
 - [ ] Verify core loop works in production (upload → transcribe → note → export)
 - [ ] Create follow-up issues for any known non-blockers discovered during release
+
+## Auth notes
+
+All data API routes require a valid session cookie (enforced by middleware).
+The only unauthenticated API endpoint is `GET /api/health` (liveness probe).
+The health response contract is intentionally minimal (`status`, `timestamp`)
+— do not add fields without updating tests and this checklist.
