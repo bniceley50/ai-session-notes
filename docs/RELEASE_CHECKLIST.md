@@ -65,47 +65,43 @@ git diff --stat
 ## Scheduled cleanup (artifact TTL enforcement)
 
 Job artifacts are auto-deleted after 24 hours. The cleanup logic is fully
-implemented in `src/lib/jobs/purge.ts` (`purgeExpiredJobArtifacts()`), but
-it only runs when triggered. You must wire up an external scheduler.
+implemented in `src/lib/jobs/purge.ts` (`purgeExpiredJobArtifacts()`).
 
-**Target endpoint:** `POST /api/jobs/runner`
-- Requires `Authorization: Bearer <JOBS_RUNNER_TOKEN>` header
-- Runs both cleanup (purge expired artifacts + stale session locks) and
-  queued job processing in a single call
-- Safe to call repeatedly (idempotent)
+**Vercel cron is pre-configured** in `vercel.json` — every 15 minutes,
+Vercel sends a GET request to `/api/jobs/runner` with the `CRON_SECRET`
+as a Bearer token. The endpoint processes queued jobs and purges expired
+artifacts + stale session locks in a single call.
 
-### Option A: Vercel Cron (if deploying to Vercel)
+### Vercel deploy requirements
 
-Add to `vercel.json`:
+1. Set `CRON_SECRET` in Vercel Dashboard → Settings → Environment Variables
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+2. Verify cron is active: Vercel Dashboard → Project → Cron Jobs tab
+3. The runner endpoint is public in middleware (bypasses session auth)
+   but requires `CRON_SECRET` or `JOBS_RUNNER_TOKEN` — unauthenticated
+   requests return 401
 
-```json
-{
-  "crons": [
-    {
-      "path": "/api/jobs/runner",
-      "schedule": "*/15 * * * *"
-    }
-  ]
-}
-```
+### Non-Vercel hosts (Option B)
 
-Then set `JOBS_RUNNER_TOKEN` in Vercel environment variables. The runner
-endpoint validates the token from Vercel's cron headers automatically.
-
-### Option B: External scheduler (any host)
-
-Use cron, systemd timer, GitHub Actions schedule, or any HTTP scheduler:
+Use cron, systemd timer, GitHub Actions schedule, or any HTTP scheduler.
+Both GET and POST methods are supported:
 
 ```bash
-# Every 15 minutes
+# Every 15 minutes — POST with JOBS_RUNNER_TOKEN
 */15 * * * * curl -s -X POST https://<deploy-url>/api/jobs/runner \
+  -H "Authorization: Bearer $JOBS_RUNNER_TOKEN"
+
+# Or GET (same auth)
+*/15 * * * * curl -s https://<deploy-url>/api/jobs/runner \
   -H "Authorization: Bearer $JOBS_RUNNER_TOKEN"
 ```
 
 ### Checklist
 
-- [ ] Scheduler configured (Vercel cron or external)
-- [ ] `JOBS_RUNNER_TOKEN` set in deploy environment
+- [ ] `CRON_SECRET` set in Vercel environment (or `JOBS_RUNNER_TOKEN` for non-Vercel)
+- [ ] Cron active in Vercel Dashboard (or external scheduler configured)
 - [ ] Verify cleanup runs: check server logs for purge results after first trigger
 - [ ] Verify stale session locks are cleaned (locks older than 5 minutes)
 

@@ -157,6 +157,15 @@ export function jobsRunnerToken(): string | undefined {
   return process.env.JOBS_RUNNER_TOKEN || undefined;
 }
 
+/**
+ * Vercel CRON_SECRET — set automatically by Vercel when a cron schedule
+ * is configured. Vercel sends it as `Authorization: Bearer <CRON_SECRET>`
+ * on every cron invocation. In non-Vercel environments this is unused.
+ */
+export function cronSecret(): string | undefined {
+  return process.env.CRON_SECRET || undefined;
+}
+
 // ── Dev-only flags ───────────────────────────────────────────
 
 export function isDevLoginAllowed(): boolean {

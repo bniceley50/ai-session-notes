@@ -19,6 +19,16 @@ describe("isPublicPath", () => {
     assert.equal(isPublicPath("/api/health/sub"), false);
   });
 
+  // ── Runner endpoint (public — has own token auth) ──────────
+
+  test("/api/jobs/runner is public (Vercel cron + external scheduler)", () => {
+    assert.equal(isPublicPath("/api/jobs/runner"), true);
+  });
+
+  test("/api/jobs/runner/sub is NOT public (exact match only)", () => {
+    assert.equal(isPublicPath("/api/jobs/runner/sub"), false);
+  });
+
   // ── Regression guards: unrelated API paths must stay protected ──
 
   test("/api/me is NOT public", () => {
