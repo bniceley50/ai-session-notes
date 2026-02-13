@@ -40,6 +40,15 @@ const tracked = runs.filter((r) => {
 const failing = tracked.filter((r) => r.conclusion === "failure");
 const inProgress = tracked.filter((r) => r.status !== "completed");
 const success = tracked.filter((r) => r.conclusion === "success");
+const latestByWorkflow = new Map();
+for (const run of tracked) {
+  if (!latestByWorkflow.has(run.workflowName)) {
+    latestByWorkflow.set(run.workflowName, run);
+  }
+}
+const currentFailures = [...latestByWorkflow.values()].filter(
+  (r) => r.status === "completed" && r.conclusion === "failure",
+);
 
 const lines = [];
 lines.push(`# Repo Hygiene Summary (${repo})`);
@@ -54,6 +63,13 @@ lines.push("");
 if (tracked.length === 0) {
   lines.push("No tracked hygiene workflow runs found.");
 } else {
+  lines.push("## Current Workflow Health");
+  lines.push("");
+  for (const run of latestByWorkflow.values()) {
+    const status = run.status === "completed" ? run.conclusion : run.status;
+    lines.push(`- ${run.workflowName}: ${status} (${run.event}) - ${run.url}`);
+  }
+  lines.push("");
   lines.push("## Recent Runs");
   lines.push("");
   for (const run of tracked.slice(0, 10)) {
@@ -62,12 +78,12 @@ if (tracked.length === 0) {
   }
 }
 
-if (failing.length > 0) {
+if (currentFailures.length > 0) {
   lines.push("");
   lines.push("## Attention Needed");
   lines.push("");
-  for (const run of failing.slice(0, 5)) {
-    lines.push(`- ${run.workflowName} failed: ${run.url}`);
+  for (const run of currentFailures) {
+    lines.push(`- ${run.workflowName} latest run failed: ${run.url}`);
   }
 }
 
