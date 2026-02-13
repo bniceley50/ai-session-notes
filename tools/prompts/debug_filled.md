@@ -23,3 +23,4 @@ No error yet - test run. If this works, we're wired.
 
 # # Git diff --stat
  CONTEXT.md   | 39 ++++++++++++++++++---------------------  DECISIONS.md | 12 +++++-------  NEXT.md      | 12 +++++++-----  3 files changed, 30 insertions(+), 33 deletions(-)
+

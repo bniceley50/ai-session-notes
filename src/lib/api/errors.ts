@@ -13,5 +13,3 @@ export type ApiErrorCode =
 export const jsonError = (status: number, code: ApiErrorCode, message: string): Response =>
   NextResponse.json({ error: { code, message } }, { status });
 
-
-

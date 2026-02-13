@@ -53,3 +53,4 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   const stream = createReadStream(filePath);
   return new Response(stream as unknown as ReadableStream, { headers });
 }
+

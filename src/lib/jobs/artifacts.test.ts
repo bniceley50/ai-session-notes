@@ -92,3 +92,4 @@ test("safeFilename: returns upload.bin for empty string", () => {
 test("safeFilename: returns upload.bin for whitespace-only", () => {
   assert.equal(safeFilename("   "), "upload.bin");
 });
+

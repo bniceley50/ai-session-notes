@@ -48,3 +48,4 @@ For `.github/workflows/jobs-runner-schedule.yml`:
 
 - `JOBS_RUNNER_ENDPOINT` (full URL to `/api/jobs/runner`)
 - `JOBS_RUNNER_TOKEN`
+

@@ -90,3 +90,4 @@ if (error) {
 console.log('✅ Test session created!');
 console.log(`\nSession ID: ${session.id}`);
 console.log(`\nUse this URL to test:\nhttp://localhost:3000/sessions/${session.id}`);
+

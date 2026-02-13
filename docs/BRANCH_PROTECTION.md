@@ -70,3 +70,4 @@ Use this when configuring branch protection in **Settings → Branches → Branc
 - [ ] Restrict who can push to matching branches
 - [ ] Do not allow force pushes
 - [ ] Do not allow deletions
+

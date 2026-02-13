@@ -161,3 +161,4 @@ test("missing sub claim → null", async () => {
   const payload = await readSessionFromCookieHeader(cookie);
   assert.equal(payload, null, "missing sub must be rejected");
 });
+

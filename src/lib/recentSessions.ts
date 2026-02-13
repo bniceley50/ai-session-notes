@@ -41,3 +41,4 @@ export function clearRecentSessions(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(KEY);
 }
+

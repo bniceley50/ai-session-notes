@@ -19,3 +19,4 @@ test("createDocxBufferFromText supports optional title", async () => {
   const buffer = await createDocxBufferFromText("Clinical note body", { title: "SOAP Note" });
   assert.ok(buffer.length > 0);
 });
+

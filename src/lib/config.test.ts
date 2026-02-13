@@ -477,3 +477,4 @@ describe("isDevelopment / isProduction", () => {
     assert.equal(isProduction(), false);
   });
 });
+

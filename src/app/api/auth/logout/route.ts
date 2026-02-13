@@ -19,3 +19,4 @@ export async function GET(request: Request): Promise<Response> {
   response.headers.append("set-cookie", clearSessionCookie());
   return response;
 }
+

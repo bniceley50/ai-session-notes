@@ -40,3 +40,4 @@ describe("GET /api/health", () => {
     assert.deepEqual(keys, ["status", "timestamp"]);
   });
 });
+

@@ -120,3 +120,4 @@ try {
 }
 
 console.log('\n✅ All checks passed! Supabase is configured correctly.\n');
+

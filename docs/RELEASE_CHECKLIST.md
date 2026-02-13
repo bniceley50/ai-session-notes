@@ -147,3 +147,4 @@ All data API routes require a valid session cookie (enforced by middleware).
 The only unauthenticated API endpoint is `GET /api/health` (liveness probe).
 The health response contract is intentionally minimal (`status`, `timestamp`)
 — do not add fields without updating tests and this checklist.
+

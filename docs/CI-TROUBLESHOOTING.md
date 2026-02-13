@@ -114,3 +114,4 @@ pnpm exec playwright show-report
 
 The workflow runs on every PR to `main` and on push to `main`.
 All env vars are dummy values — no GitHub Secrets required.
+

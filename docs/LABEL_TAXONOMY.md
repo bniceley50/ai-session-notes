@@ -125,3 +125,4 @@ This creates missing labels and updates changed ones. It never deletes labels th
 2. Run `pnpm labels:check:strict` — fix any errors before committing.
 3. Run `pnpm labels:sync` — push changes to GitHub.
 4. Open a PR and confirm CI passes.
+

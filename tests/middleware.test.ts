@@ -89,3 +89,4 @@ describe("isPublicPath", () => {
     assert.equal(isPublicPath("/dashboard"), false);
   });
 });
+

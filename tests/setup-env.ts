@@ -54,3 +54,4 @@ process.env.DEFAULT_PRACTICE_ID ||= "practice-test";
 // AI API keys (dummy values — whisper.ts and claude.ts eagerly instantiate clients at import time)
 process.env.OPENAI_API_KEY ||= "sk-test-dummy-key";
 process.env.ANTHROPIC_API_KEY ||= "sk-ant-test-dummy-key";
+

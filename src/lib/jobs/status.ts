@@ -119,3 +119,4 @@ export const updateJobStatus = async (
   await writeJobStatus(next);
   return next;
 };
+

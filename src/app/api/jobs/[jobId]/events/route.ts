@@ -32,3 +32,4 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
 
   return Response.json({ jobId: auth.jobId, events: job.statusHistory }, { status: 200 });
 }
+

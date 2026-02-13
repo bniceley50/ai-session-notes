@@ -254,3 +254,4 @@ export async function deleteNote(
     throw new Error(`Failed to delete note: ${error.message}`);
   }
 }
+

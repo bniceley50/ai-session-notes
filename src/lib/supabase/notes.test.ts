@@ -137,3 +137,4 @@ describe("resolveClient admin fallback warning", () => {
     assert.equal(warnMock.mock.calls.length, 0, "should not warn when user client is provided");
   });
 });
+

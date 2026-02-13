@@ -102,3 +102,4 @@ test("keeps fresh session.lock files during purge", async () => {
   // Clean up
   await fs.rm(sessionDir, { recursive: true, force: true });
 });
+

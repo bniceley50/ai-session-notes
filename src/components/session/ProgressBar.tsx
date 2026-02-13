@@ -73,3 +73,4 @@ export function ProgressBar({ progress, stage, label, indeterminate, subtitle }:
     </div>
   );
 }
+

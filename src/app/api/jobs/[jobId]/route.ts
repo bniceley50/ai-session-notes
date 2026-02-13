@@ -55,3 +55,4 @@ export async function DELETE(request: Request, context: RouteContext): Promise<R
 
   return new Response(null, { status: 204 });
 }
+

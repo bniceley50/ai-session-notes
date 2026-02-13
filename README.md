@@ -90,3 +90,4 @@ Copy `.env.example` to `.env.local` and fill in values. Key groups:
 - Nightly deep audit: `.github/workflows/repo-hygiene-nightly.yml`
 - Weekly autofix PR: `.github/workflows/repo-hygiene-weekly-autofix.yml`
 - OpenClaw summary command: `pnpm hygiene:openclaw:summary`
+

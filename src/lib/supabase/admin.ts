@@ -6,3 +6,4 @@ export function createSupabaseAdminClient(supabaseUrl: string, serviceRoleKey: s
     auth: { persistSession: false },
   });
 }
+

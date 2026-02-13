@@ -18,3 +18,4 @@ export function PanelHeader({ title, status, actions, testId }: Props) {
     </header>
   );
 }
+

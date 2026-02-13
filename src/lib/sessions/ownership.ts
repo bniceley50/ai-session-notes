@@ -108,5 +108,3 @@ export const ensureSessionOwnership = async (
   return writeSessionOwnership(sessionId, ownerUserId, orgId);
 };
 
-
-

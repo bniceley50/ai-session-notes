@@ -71,3 +71,4 @@ export async function requireJobOwner(
 
   return { ok: true, jobId, sessionId: index.sessionId, practiceId: session.practiceId };
 }
+

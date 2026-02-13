@@ -105,3 +105,4 @@ function MicrosoftIcon() {
     </svg>
   );
 }
+

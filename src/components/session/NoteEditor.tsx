@@ -436,3 +436,4 @@ export function NoteEditor({ sessionId }: Props) {
     </section>
   );
 }
+

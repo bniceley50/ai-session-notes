@@ -92,3 +92,4 @@ export function SessionHistoryStrip({ currentSessionId }: Props) {
     </section>
   );
 }
+
