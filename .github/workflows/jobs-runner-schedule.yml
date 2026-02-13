@@ -15,18 +15,52 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Validate required secrets
+      - name: Resolve scheduler config
+        id: resolve
         env:
           JOBS_RUNNER_ENDPOINT: ${{ secrets.JOBS_RUNNER_ENDPOINT }}
+          JOBS_RUNNER_BASE_URL: ${{ vars.JOBS_RUNNER_BASE_URL }}
           JOBS_RUNNER_TOKEN: ${{ secrets.JOBS_RUNNER_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "${JOBS_RUNNER_ENDPOINT:-}" || { echo "Missing secret: JOBS_RUNNER_ENDPOINT"; exit 1; }
-          test -n "${JOBS_RUNNER_TOKEN:-}" || { echo "Missing secret: JOBS_RUNNER_TOKEN"; exit 1; }
+          endpoint="${JOBS_RUNNER_ENDPOINT:-}"
+          base_url="${JOBS_RUNNER_BASE_URL:-}"
+
+          if [[ -z "$endpoint" && -n "$base_url" ]]; then
+            endpoint="${base_url%/}/api/jobs/runner"
+          fi
+
+          if [[ -z "${JOBS_RUNNER_TOKEN:-}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=Missing JOBS_RUNNER_TOKEN secret." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ -z "$endpoint" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=Missing JOBS_RUNNER_ENDPOINT secret (or JOBS_RUNNER_BASE_URL variable)." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$endpoint" == *"example.com"* || "$endpoint" == *"<deploy-url>"* ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=JOBS_RUNNER_ENDPOINT is still a placeholder." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$endpoint" != https://* ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "skip_reason=JOBS_RUNNER_ENDPOINT must be an https URL." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "endpoint=$endpoint" >> "$GITHUB_OUTPUT"
 
       - name: Invoke jobs runner
+        if: steps.resolve.outputs.skip == 'false'
         env:
-          JOBS_RUNNER_ENDPOINT: ${{ secrets.JOBS_RUNNER_ENDPOINT }}
+          JOBS_RUNNER_ENDPOINT: ${{ steps.resolve.outputs.endpoint }}
           JOBS_RUNNER_TOKEN: ${{ secrets.JOBS_RUNNER_TOKEN }}
         run: |
           set -euo pipefail
@@ -34,3 +68,8 @@ jobs:
             -X POST "${JOBS_RUNNER_ENDPOINT}" \
             -H "Authorization: Bearer ${JOBS_RUNNER_TOKEN}" \
             -H "Content-Type: application/json"
+
+      - name: Report skipped invocation
+        if: steps.resolve.outputs.skip == 'true'
+        run: |
+          echo "::warning::Jobs runner invocation skipped: ${{ steps.resolve.outputs.skip_reason }}"

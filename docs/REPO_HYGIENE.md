@@ -49,4 +49,8 @@ This gives a quick operational check plus a repo hygiene run summary from GitHub
 For `.github/workflows/jobs-runner-schedule.yml`:
 
 - `JOBS_RUNNER_ENDPOINT` (full URL to `/api/jobs/runner`)
+- Optional fallback: repository variable `JOBS_RUNNER_BASE_URL` (workflow appends `/api/jobs/runner`)
 - `JOBS_RUNNER_TOKEN`
+
+If endpoint/token are missing or still set to placeholders, the workflow now
+skips invocation with a warning instead of hard-failing every schedule run.
