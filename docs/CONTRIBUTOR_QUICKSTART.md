@@ -55,6 +55,18 @@ Quick reference:
 | `priority:*` | `p0` (blocker), `p1` (high), `p2` (medium), `p3` (low) |
 | `status:*` | `ready`, `in-progress`, `blocked`, `review` |
 
+### Maintainer: syncing labels to GitHub
+
+Labels live in `.github/labels.json` (the seed file). If you add, rename, or recolor a label, sync it to GitHub:
+
+```bash
+pnpm labels:check          # validate seed (fast, no network)
+pnpm labels:check:strict   # also enforces alphabetical sort order
+pnpm labels:sync           # upsert to GitHub (requires `gh auth login`)
+```
+
+> **When to run:** after any edit to `.github/labels.json` lands on `main`. The sync is idempotent and never deletes labels — safe to run repeatedly.
+
 ## 5. CI triage
 
 If CI goes red, start here — most failures resolve in under 60 seconds:
