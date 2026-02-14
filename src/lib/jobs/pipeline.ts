@@ -266,7 +266,9 @@ export const runJobPipeline = async ({
     progress = 90;
     await updateJobStatus(jobId, { status: "running", stage, progress, errorMessage: null });
 
-    const exportText = `EHR Export\n\nGenerated: ${new Date().toISOString()}\n`;
+    // Export = clean clinical note text (no markdown heading / metadata footer).
+    // This is what /api/jobs/[jobId]/export serves (plain-text or .docx).
+    const exportText = clinicalNote.text;
     await writeTextFile(getJobExportPath(sessionId, jobId), exportText);
 
     await updateJobStatus(jobId, { status: "complete", stage: "export", progress: 100, errorMessage: null });
