@@ -33,3 +33,4 @@ export const sessions: Session[] = [
 export function getSessionById(id: string): Session | undefined {
   return sessions.find((session) => session.id === id);
 }
+

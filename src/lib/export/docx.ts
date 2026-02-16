@@ -56,3 +56,4 @@ export async function createDocxBufferFromText(
   const document = buildDocxDocument(text, options);
   return Packer.toBuffer(document);
 }
+

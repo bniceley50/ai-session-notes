@@ -75,3 +75,4 @@ describe("GET /api/test-session", () => {
     assert.equal(body.hasSession, false);
   });
 });
+

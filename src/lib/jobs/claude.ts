@@ -137,3 +137,4 @@ Generate a ${typeLabel} in markdown format:`;
     throw new Error("Claude API failed: Unknown error");
   }
 }
+

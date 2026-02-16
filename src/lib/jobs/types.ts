@@ -32,3 +32,4 @@ export type JobRecord = {
   expiresAt: string;
   upload?: JobUpload;
 };
+

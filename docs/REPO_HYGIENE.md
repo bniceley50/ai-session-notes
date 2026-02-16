@@ -54,3 +54,4 @@ For `.github/workflows/jobs-runner-schedule.yml`:
 
 If endpoint/token are missing or still set to placeholders, the workflow now
 skips invocation with a warning instead of hard-failing every schedule run.
+

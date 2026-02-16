@@ -109,3 +109,4 @@ console.log(`Auto-fix complete. Files changed: ${changed.length}`);
 for (const rel of changed.slice(0, 200)) {
   console.log(`- ${rel}`);
 }
+

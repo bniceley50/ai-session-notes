@@ -494,3 +494,4 @@ if (args.failOn !== "NONE") {
     process.exit(1);
   }
 }
+

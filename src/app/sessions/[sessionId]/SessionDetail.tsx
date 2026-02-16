@@ -133,3 +133,4 @@ export default function SessionDetail({ session }: SessionDetailProps) {
     </div>
   );
 }
+

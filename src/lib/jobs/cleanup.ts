@@ -33,3 +33,4 @@ export async function cleanupJobArtifacts(
     console.error(`[cleanup] failed to remove job index for ${jobId}:`, error);
   }
 }
+

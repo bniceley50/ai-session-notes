@@ -99,3 +99,4 @@ export default function WorkspaceSidebar({ activeSessionId }: Props) {
     </aside>
   );
 }
+

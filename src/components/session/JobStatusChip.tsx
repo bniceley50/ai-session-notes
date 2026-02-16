@@ -66,3 +66,4 @@ export function JobStatusChip({ status, stage, testId }: Props) {
     </span>
   );
 }
+

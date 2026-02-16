@@ -95,3 +95,4 @@ if (outFile) {
   await fs.mkdir(path.dirname(abs), { recursive: true });
   await fs.writeFile(abs, output, "utf8");
 }
+

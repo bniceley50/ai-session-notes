@@ -16,3 +16,4 @@ export function GET(): Response {
     timestamp: new Date().toISOString(),
   });
 }
+

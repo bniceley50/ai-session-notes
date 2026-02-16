@@ -140,3 +140,4 @@ When edits are allowed: ONE change then run .\tools\gate.cmd, then report:
 
 Do not do drive-by formatting or refactors. Keep diffs minimal and intentional.
 ```
+

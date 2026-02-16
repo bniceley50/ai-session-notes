@@ -170,3 +170,4 @@ describe("findActiveJobForSession", () => {
     await cleanIndex(activeJob);
   });
 });
+

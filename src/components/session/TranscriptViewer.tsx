@@ -161,3 +161,4 @@ export function TranscriptViewer({ sessionId }: Props) {
     </section>
   );
 }
+
