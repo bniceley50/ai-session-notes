@@ -120,6 +120,13 @@ describe("runJobPipeline", () => {
     const status = JSON.parse(statusRaw) as { status: string; progress: number };
     assert.equal(status.status, "complete");
     assert.equal(status.progress, 100);
+
+    // runner.lock must be cleaned up after pipeline completes
+    const lockExists = await fs
+      .access(path.join(jobDir, "runner.lock"))
+      .then(() => true)
+      .catch(() => false);
+    assert.equal(lockExists, false, "runner.lock must be removed after successful pipeline");
   });
 
   test("deleted job exits early without writing files", async () => {
@@ -138,6 +145,13 @@ describe("runJobPipeline", () => {
       .then(() => true)
       .catch(() => false);
     assert.equal(transcriptExists, false, "deleted job must not write transcript");
+
+    // runner.lock must be cleaned up even for early exit
+    const lockExists = await fs
+      .access(path.join(jobDir, "runner.lock"))
+      .then(() => true)
+      .catch(() => false);
+    assert.equal(lockExists, false, "runner.lock must be removed after deleted-job early exit");
   });
 
   test("no API flags → pipeline fails gracefully", async () => {
@@ -163,6 +177,13 @@ describe("runJobPipeline", () => {
         status.errorMessage?.includes("disabled"),
         "error message must mention APIs are disabled"
       );
+
+      // runner.lock must be cleaned up even on failure
+      const lockExists = await fs
+        .access(path.join(jobDir, "runner.lock"))
+        .then(() => true)
+        .catch(() => false);
+      assert.equal(lockExists, false, "runner.lock must be removed after pipeline failure");
     } finally {
       // Restore flags
       if (savedStub !== undefined) process.env.AI_ENABLE_STUB_APIS = savedStub;

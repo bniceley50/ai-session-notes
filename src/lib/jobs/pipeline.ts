@@ -107,8 +107,9 @@ export const runJobPipeline = async ({
   let stage: JobStage = runTranscribe ? "transcribe" : "draft";
   let progress = 0;
 
+  let claimed = false;
   try {
-    const claimed = await tryClaimJob(sessionId, jobId);
+    claimed = await tryClaimJob(sessionId, jobId);
     if (!claimed) return;
 
     if (await shouldStop(jobId)) return;
@@ -275,5 +276,10 @@ export const runJobPipeline = async ({
     const message = error instanceof Error ? error.message : "Pipeline failed.";
     await updateJobStatus(jobId, { status: "failed", stage, progress, errorMessage: message }).catch(() => {});
     await appendLog(sessionId, jobId, `pipeline failed: ${message}`).catch(() => {});
+  } finally {
+    if (claimed) {
+      const lockPath = path.join(getJobDir(sessionId, jobId), "runner.lock");
+      await fs.rm(lockPath, { force: true }).catch(() => {});
+    }
   }
 };

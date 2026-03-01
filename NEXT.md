@@ -35,9 +35,9 @@ Verified shipped items (as of 2026-02-12):
    - Verify .docx export formatting matches EHR-friendly structure.
    - Add .txt plain-text export option.
 
-5) **Lock file cleanup**
-   - Stale `.lock` files from chunked transcription persist after job completion.
-   - Either add cleanup logic or document as known limitation with manual cleanup steps.
+5) ~~**Lock file cleanup**~~ ✓
+   - `runner.lock` now removed in `finally` block of `runJobPipeline()` (success, failure, early exit).
+   - `session.lock` already cleaned by `releaseSessionLock()` + stale-lock purge in `purge.ts`.
 
 ## Verification
 
