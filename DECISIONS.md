@@ -78,3 +78,27 @@ Revisit triggers:
 - Switching AI providers
 - Adding job queue system (BullMQ, etc.)
 - Implementing retry logic for failed API calls
+
+## 2026-03-01 - Security Hardening Round
+
+### Auth route hardening (14988e1)
+- State-changing auth endpoints (`/api/auth/dev-login`, `/api/auth/callback`) require POST method + CSRF guard (Origin/Referer allowlist).
+- Safe methods (GET, HEAD, OPTIONS) are exempt from CSRF check.
+- Capacitor origin (`capacitor://localhost`) is allowed for mobile clients.
+- Middleware no longer treats `/api/auth/*` as public by prefix — each auth route is explicitly allowlisted.
+
+### Export/download header hardening (64eb7ef)
+- All artifact download and export routes set:
+  - `Content-Disposition: attachment` with sanitized filename (no path traversal, no injection).
+  - `X-Content-Type-Options: nosniff` (prevent MIME sniffing).
+  - `Cache-Control: no-store` (prevent caching of sensitive artifacts).
+  - `Content-Security-Policy: sandbox` (prevent script execution if opened directly).
+
+### Pipeline lock cleanup (08b7313)
+- `runJobPipeline()` always removes `runner.lock` in a `finally` block — covers success, failure, and early exit.
+- Prevents orphaned locks from blocking future pipeline runs.
+
+Revisit triggers:
+- Adding new auth endpoints or OAuth providers.
+- Adding new downloadable artifact types.
+- Changing pipeline execution model (e.g., moving to external workers).
