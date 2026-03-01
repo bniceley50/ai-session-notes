@@ -52,7 +52,25 @@
 | Signed-URL upload pattern | **Yes** (`src/lib/audio/uploader.ts`) | Partial — direct POST upload only |
 | Typed API client with error classes | **Yes** (`src/lib/api.ts`, 417 lines) | No dedicated client; routes call fetch inline |
 
-> **Important finding:** The user's task description references `DRY_RUN_CHECKLIST.md`, `PRODUCTION_RUNBOOK.md`, `SECURITY-AUDIT-2026-02-17.md`, `TRIAD_OPERATING_MODEL.md`, and `Ralph Loop` files. **None of these exist in legal-notes-mobile.** These artifacts likely live in the `legal-notes-v1` backend repo (the Next.js web app deployed on Vercel), which is not present on this machine. The repo we have (`legal-notes-mobile`) is the iOS companion client only.
+> **Important finding (updated 2026-03-01):** Remote analysis of `bniceley50/legal-notes-v1` (private repo, file listing only — contents not readable without auth) confirms:
+>
+> **Found in legal-notes-v1 (portable to ai-session-notes):**
+> - `SECURITY-AUDIT-2026-02-17.md` — security audit document
+> - `SECURITY_FINDINGS_VALIDATED.md` — validated security findings
+> - `CONTINUITY.md` — agent continuity / handoff protocol
+> - `SESSION_HANDOFF.md` — session handoff document
+> - `AGENTS.md`, `CONTEXT.md`, `DECISIONS.md`, `NEXT.md` — governance docs
+> - `JOURNAL/WRAPUPS/` — session journal/wrapup entries
+> - `SKILLS/`, `.agent/workflows/`, `.codex/skills/` — agent tooling configs
+> - `scripts/`, `tools/` — utility scripts
+>
+> **NOT found in ANY of the 3 repos (legal-notes-v1, legal-notes-mobile, ai-session-notes):**
+> - `DRY_RUN_CHECKLIST.md` — does not exist
+> - `PRODUCTION_RUNBOOK.md` — does not exist
+> - `TRIAD_OPERATING_MODEL.md` — does not exist
+> - Ralph Loop files — do not exist
+>
+> **Action required:** Clone legal-notes-v1 locally (or authorize the git proxy) to read file contents and complete the port of security audit, continuity, and session handoff docs.
 
 ---
 
@@ -102,10 +120,12 @@
 
 | # | Item | Reason |
 |---|------|--------|
-| 12 | Triad Operating Model (Codex/Claude/Opus) | Referenced in task but **not found** in either repo on this machine. Likely in legal-notes-v1 backend |
-| 13 | Ralph Loop remediation pattern | **Not found** in either repo. Likely in legal-notes-v1 backend |
-| 14 | Production Runbook / Dry Run Checklist | **Not found** in legal-notes-mobile. ASN already has `RELEASE_CHECKLIST.md` |
-| 15 | Security Audit doc | **Not found** in legal-notes-mobile. ASN already has `PENTEST_CHECKLIST.md` + `PENTEST_PROMPT.md` |
+| 12 | Triad Operating Model (Codex/Claude/Opus) | **Not found in any of the 3 repos.** Does not exist yet — may need to be authored fresh |
+| 13 | Ralph Loop remediation pattern | **Not found in any of the 3 repos.** Does not exist yet |
+| 14 | Production Runbook / Dry Run Checklist | **Not found in any of the 3 repos.** ASN has `RELEASE_CHECKLIST.md` as partial substitute |
+| 15 | Security Audit doc | **Found in legal-notes-v1** as `SECURITY-AUDIT-2026-02-17.md` + `SECURITY_FINDINGS_VALIDATED.md`. Needs clone access to read and port |
+| 15a | Continuity / Session Handoff docs | **Found in legal-notes-v1** as `CONTINUITY.md` + `SESSION_HANDOFF.md`. Needs clone access to read and port |
+| 15b | Agent tooling (SKILLS/, .agent/workflows/, .codex/skills/) | **Found in legal-notes-v1**. Needs clone access to evaluate portability |
 | 16 | CocoaPods / Xcode project files | iOS-specific build config; irrelevant to Next.js backend |
 | 17 | Capacitor native plugins (haptics, splash screen, status bar) | iOS-specific; not applicable to web app |
 | 18 | Mediation-specific UI copy / legal terminology | Must be **replaced**, not ported |
@@ -370,7 +390,7 @@ npm run dev
 
 | # | Question | Impact | Blocking? |
 |---|----------|--------|-----------|
-| 1 | **Is the legal-notes-v1 backend repo available anywhere?** The task references DRY_RUN_CHECKLIST.md, PRODUCTION_RUNBOOK.md, SECURITY-AUDIT-2026-02-17.md, TRIAD_OPERATING_MODEL.md, and Ralph Loop files — none of which exist in legal-notes-mobile. These are likely in the backend repo. Without it, those port candidates cannot be analyzed. | Cannot port governance docs, security audit, triad model, Ralph Loop | **Yes — for items 12-15 in the port candidates** |
+| 1 | **Can the git proxy be authorized for legal-notes-v1?** Remote file listing confirms `SECURITY-AUDIT-2026-02-17.md`, `CONTINUITY.md`, `SESSION_HANDOFF.md`, and agent tooling exist there. However, file contents are unreadable without clone access. Three items (DRY_RUN_CHECKLIST, PRODUCTION_RUNBOOK, TRIAD_OPERATING_MODEL) and Ralph Loop **do not exist in any repo** — they would need to be authored from scratch. | Cannot port security audit, continuity docs, or agent tooling without access | **Yes — for items 15, 15a, 15b** |
 | 2 | **Should the mobile app continue as a separate repo, or be merged into ai-session-notes as a monorepo?** This affects the governance doc porting strategy and CI setup. | Determines whether Phase 6 creates new docs or shares existing ones | No — can proceed with separate-repo assumption |
 | 3 | **Is Bearer token auth intended for production mobile use, or is it a dev convenience?** The current mobile auth flow bypasses Supabase auth entirely and uses a custom JWT. | Determines security posture of Phase 3 | No — can implement securely either way |
 | 4 | **Does the ASN backend's "mediation" note type need to be added, or should the mobile app only use existing healthcare types?** The backend's `ClinicalNoteType` union (`claude.ts:8`) doesn't include "mediation". | Determines if backend change is needed | No — recommend mobile sends healthcare types only |
