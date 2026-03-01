@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { jsonError } from "@/lib/api/errors";
+import { downloadHeaders } from "@/lib/api/downloadHeaders";
 import { requireSessionOwner } from "@/lib/api/requireSessionOwner";
 import { safePathSegment } from "@/lib/jobs/artifacts";
 import { getAudioFilePath, readAudioMetadata } from "@/lib/jobs/audio";
@@ -45,10 +46,8 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
     return jsonError(404, "NOT_FOUND", "Audio artifact not found.");
   }
 
-  const headers = new Headers();
-  headers.set("Content-Type", meta.mime);
+  const headers = downloadHeaders(meta.filename, meta.mime);
   headers.set("Content-Length", String(stat.size));
-  headers.set("Content-Disposition", `attachment; filename=\"${meta.filename}\"`);
 
   const stream = createReadStream(filePath);
   return new Response(stream as unknown as ReadableStream, { headers });

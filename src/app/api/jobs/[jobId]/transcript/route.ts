@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { requireJobOwner } from "@/lib/api/requireJobOwner";
+import { downloadHeaders } from "@/lib/api/downloadHeaders";
 import { getJobTranscriptPath } from "@/lib/jobs/status";
 
 export const runtime = "nodejs";
@@ -19,12 +20,8 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
 
   try {
     const content = await fs.readFile(transcriptPath, "utf8");
-    return new Response(content, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-      },
-    });
+    const headers = downloadHeaders(`transcript-${auth.jobId}.txt`, "text/plain; charset=utf-8");
+    return new Response(content, { status: 200, headers });
   } catch {
     return new Response(
       JSON.stringify({ error: { code: "NOT_FOUND", message: "Transcript not found." } }),

@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { requireJobOwner } from "@/lib/api/requireJobOwner";
 import { jsonError } from "@/lib/api/errors";
+import { downloadHeaders } from "@/lib/api/downloadHeaders";
 import { getJobExportPath } from "@/lib/jobs/status";
 
 export const runtime = "nodejs";
@@ -26,10 +27,8 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
 
   try {
     const text = await fs.readFile(p, "utf8");
-    return new Response(text, {
-      status: 200,
-      headers: { "content-type": "text/plain; charset=utf-8" },
-    });
+    const headers = downloadHeaders(`export-${auth.jobId}.txt`, "text/plain; charset=utf-8");
+    return new Response(text, { status: 200, headers });
   } catch (e: any) {
     if (e?.code === "ENOENT") return jsonError(404, "NOT_FOUND", "export not found");
     return jsonError(500, "INTERNAL", "failed to read export");
