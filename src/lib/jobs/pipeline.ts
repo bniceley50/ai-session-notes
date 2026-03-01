@@ -14,6 +14,7 @@ import { transcribeAudio, transcribeAudioChunked, CHUNK_THRESHOLD } from "@/lib/
 import { generateClinicalNote, type ClinicalNoteType } from "@/lib/jobs/claude";
 import { withTimeout } from "@/lib/jobs/withTimeout";
 import { checkFfmpeg } from "@/lib/jobs/ffmpeg";
+import { writeFileAtomic } from "@/lib/fs/writeFileAtomic";
 import {
   aiWhisperTimeoutMs,
   aiClaudeTimeoutMs,
@@ -42,8 +43,7 @@ const appendLog = async (sessionId: string, jobId: string, message: string): Pro
 };
 
 const writeTextFile = async (filePath: string, content: string): Promise<void> => {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, content, "utf8");
+  await writeFileAtomic(filePath, content);
 };
 
 const shouldStop = async (jobId: string): Promise<boolean> => {

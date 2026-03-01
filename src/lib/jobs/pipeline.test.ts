@@ -127,6 +127,11 @@ describe("runJobPipeline", () => {
       .then(() => true)
       .catch(() => false);
     assert.equal(lockExists, false, "runner.lock must be removed after successful pipeline");
+
+    // No .tmp- files should remain anywhere in the job directory
+    const allFiles = await fs.readdir(jobDir, { recursive: true });
+    const temps = (allFiles as string[]).filter((f) => f.includes(".tmp-"));
+    assert.equal(temps.length, 0, "no .tmp- files should remain after successful pipeline");
   });
 
   test("deleted job exits early without writing files", async () => {
