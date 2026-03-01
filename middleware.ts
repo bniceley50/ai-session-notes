@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { readSessionFromCookieHeader } from "@/lib/auth/session";
 
-const PUBLIC_PREFIXES = ["/api/auth", "/_next"];
+const PUBLIC_PREFIXES = ["/_next"];
 const PUBLIC_PATHS = [
   "/login",
   "/favicon.ico",
@@ -10,6 +10,10 @@ const PUBLIC_PATHS = [
   "/sitemap.xml",
   "/api/health",
   "/api/jobs/runner", // Vercel cron (GET) + external scheduler (POST) — has own token auth
+  "/api/auth/login",
+  "/api/auth/callback",
+  "/api/auth/logout",
+  "/api/auth/dev-login",
 ];
 const PUBLIC_EXTENSIONS = [
   ".png",

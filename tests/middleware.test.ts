@@ -43,14 +43,26 @@ describe("isPublicPath", () => {
     assert.equal(isPublicPath("/api/jobs/create"), false);
   });
 
-  // ── Existing public paths still work ────────────────────────
+  // ── Auth routes: explicit allowlist (no longer prefix match) ──
 
-  test("/api/auth/callback is public (prefix match)", () => {
+  test("/api/auth/login is public (explicit path)", () => {
+    assert.equal(isPublicPath("/api/auth/login"), true);
+  });
+
+  test("/api/auth/callback is public (explicit path)", () => {
     assert.equal(isPublicPath("/api/auth/callback"), true);
   });
 
-  test("/api/auth/dev-login is public (prefix match)", () => {
+  test("/api/auth/logout is public (explicit path)", () => {
+    assert.equal(isPublicPath("/api/auth/logout"), true);
+  });
+
+  test("/api/auth/dev-login is public (explicit path)", () => {
     assert.equal(isPublicPath("/api/auth/dev-login"), true);
+  });
+
+  test("/api/auth/unknown-future-route is NOT public (no prefix match)", () => {
+    assert.equal(isPublicPath("/api/auth/unknown-future-route"), false);
   });
 
   test("/login is public (exact path)", () => {

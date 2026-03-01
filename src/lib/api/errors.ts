@@ -8,6 +8,7 @@ export type ApiErrorCode =
   | "CONFLICT"
   | "UNSUPPORTED_MEDIA_TYPE"
   | "PAYLOAD_TOO_LARGE"
+  | "CSRF_REJECTED"
   | "INTERNAL";
 
 export const jsonError = (status: number, code: ApiErrorCode, message: string): Response =>
