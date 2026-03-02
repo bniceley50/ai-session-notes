@@ -1,4 +1,15 @@
-# Durability Architecture Plan
+# Durability Phase 1: Crash-safe + Idempotent Local Pipeline
+
+## Status
+
+- **Phase 1**: shipped (67a6dce, 1b7f9fb, e605314)
+  - Atomic writes via temp-file + rename (`writeFileAtomic`)
+  - Job state file (`state.json`) written at every stage boundary
+  - Idempotent stage skip: existing non-empty outputs are not rewritten on re-run
+- **Phase 2**: not started (retry semantics + error classification)
+- **Phase 3**: not started (concurrency under scheduler overlap)
+
+**Scope**: single-node, local filesystem. Not distributed, not multi-worker, not exactly-once across machines.
 
 ## Goal
 
@@ -42,34 +53,40 @@ This doc defines the minimal durability work needed to move from "works in dev" 
 
 ## Phased Plan (Minimal)
 
-### Phase 1 — Crash-safe artifacts + lock hygiene
+### Phase 1 — Crash-safe artifacts + lock hygiene + idempotent skip  ✅ DONE
 
-Smallest high-value change. No new abstractions.
+Shipped in 3 patches. No new abstractions.
 
-- Ensure every pipeline stage writes to a temp file then renames atomically to final name.
-- Verify locks are always released in finally blocks (runner.lock, session.lock) — already done, but audit for edge cases.
-- Add a single "job state" file (`state.json`) updated after each stage:
-  - `status`: queued | running | complete | failed | deleted
-  - `stage`: transcribe | draft | export
-  - `updatedAt`: ISO timestamp
-  - `error`: error summary (if failed)
+- **Patch 1** (67a6dce): `writeFileAtomic()` helper — write to `.tmp-<random>`, rename atomically.
+  All pipeline `writeTextFile` calls routed through it (transcript, draft, export).
+  6 unit tests in `writeFileAtomic.test.ts`.
+- **Patch 2** (1b7f9fb): `state.json` written at every stage boundary via `writeFileAtomic`.
+  Records `status` (running/complete/failed), `stage` (init/transcribe/draft/export),
+  `updatedAt`, and `error` (name + message on failure). New module: `jobState.ts`.
+- **Patch 3** (e605314): Idempotent stage skip. Each stage checks if its final output
+  exists and is non-empty before running. Skip is logged. State.json still transitions
+  through all stages on skip so it reflects what the pipeline traversed.
+  Transcript skip requires BOTH job + session transcript to exist (consistency guard).
+- **Acceptance** (all verified by tests):
+  - No `.tmp-` files remain after successful pipeline (pipeline.test.ts).
+  - No orphan `runner.lock` after any exit path (success/failure/deletion).
+  - Re-run on same job: output mtimes unchanged, state.json = complete/export,
+    log contains "skipped" messages (pipeline.test.ts idempotent re-run test).
+  - Failed pipeline: state.json shows failed with error details.
+
+### Phase 2 — Retry semantics + error classification
+
+Idempotent stage skip was pulled forward into Phase 1. What remains:
+
+- Classify errors as transient vs permanent:
+  - Transient (network timeout, 5xx from upstream API): eligible for automatic retry with backoff.
+  - Permanent (invalid audio, 4xx from API, malformed input): mark failed, do not retry.
+- Add manual retry endpoint that resets status to queued + clears failed error.
+  Idempotent skip (Phase 1) makes this safe — completed stages won't re-run.
 - **Acceptance checks**:
-  - Simulate crash mid-stage (kill process) → next runner pass can re-run safely.
-  - No `*.tmp` files remain after normal success.
-  - No orphan `runner.lock` persists after any exit path.
-
-### Phase 2 — Retry semantics + idempotent stage execution
-
-- Define when to retry automatically:
-  - Transient errors (network timeout, 5xx from upstream API): retry up to N times with backoff.
-  - Permanent errors (invalid audio, 4xx from API, malformed input): mark failed, do not retry.
-- Make stage functions idempotent:
-  - If final output exists and matches expected shape → skip stage.
-  - If final output missing but temp exists → clean temp and rerun.
-- **Acceptance checks**:
-  - Re-run runner twice on same job → artifacts unchanged, no duplication.
   - Forced transient failure → job retried successfully on next runner pass.
   - Forced permanent failure → job marked failed with useful error; can be retried manually.
+  - Manual retry on failed job → pipeline resumes from failed stage (skips completed).
 
 ### Phase 3 — Durability under concurrency and schedule overlap
 
