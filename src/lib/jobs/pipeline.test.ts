@@ -9,7 +9,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { ARTIFACTS_ROOT } from "@/lib/jobs/artifacts";
 import { runJobPipeline } from "@/lib/jobs/pipeline";
-import { writeJobIndex, writeJobStatus, type JobStatusFile } from "@/lib/jobs/status";
+import { getJobTranscriptPath, getJobDraftPath, getSessionTranscriptPath, writeJobIndex, writeJobStatus, type JobStatusFile } from "@/lib/jobs/status";
 import { writeAudioMetadata } from "@/lib/jobs/audio";
 import type { JobState } from "@/lib/jobs/jobState";
 
@@ -210,5 +210,64 @@ describe("runJobPipeline", () => {
       if (savedStub !== undefined) process.env.AI_ENABLE_STUB_APIS = savedStub;
       if (savedReal !== undefined) process.env.AI_ENABLE_REAL_APIS = savedReal;
     }
+  });
+
+  test("re-running pipeline skips stages when outputs already exist", async () => {
+    const sessionId = "sess-pipe-idem";
+    const jobId = "job-pipe-idem";
+    const artifactId = "art-pipe-idem";
+
+    // First run — produces all outputs
+    await seedFullJob(sessionId, jobId, artifactId);
+    await runJobPipeline({ sessionId, jobId, artifactId });
+
+    // Capture mtimes of outputs after first run
+    const jobTranscriptPath = getJobTranscriptPath(sessionId, jobId);
+    const sessionTranscriptPath = getSessionTranscriptPath(sessionId);
+    const draftPath = getJobDraftPath(sessionId, jobId);
+    const jobDir = path.join(artifactsRoot, "sessions", sessionId, "jobs", jobId);
+
+    const mtime1 = {
+      jobTranscript: (await fs.stat(jobTranscriptPath)).mtimeMs,
+      sessionTranscript: (await fs.stat(sessionTranscriptPath)).mtimeMs,
+      draft: (await fs.stat(draftPath)).mtimeMs,
+    };
+
+    // Reset job status to "queued" so pipeline will run again
+    const resetStatus: JobStatusFile = {
+      jobId,
+      sessionId,
+      status: "queued",
+      stage: "transcribe",
+      progress: 0,
+      updatedAt: new Date().toISOString(),
+      errorMessage: null,
+    };
+    await writeJobStatus(resetStatus);
+
+    // Second run — should skip all stages
+    await runJobPipeline({ sessionId, jobId, artifactId });
+
+    // Verify outputs were NOT rewritten (mtimes unchanged)
+    const mtime2 = {
+      jobTranscript: (await fs.stat(jobTranscriptPath)).mtimeMs,
+      sessionTranscript: (await fs.stat(sessionTranscriptPath)).mtimeMs,
+      draft: (await fs.stat(draftPath)).mtimeMs,
+    };
+
+    assert.equal(mtime2.jobTranscript, mtime1.jobTranscript, "job transcript must not be rewritten");
+    assert.equal(mtime2.sessionTranscript, mtime1.sessionTranscript, "session transcript must not be rewritten");
+    assert.equal(mtime2.draft, mtime1.draft, "draft must not be rewritten");
+
+    // state.json still shows complete/export
+    const stateRaw = await fs.readFile(path.join(jobDir, "state.json"), "utf8");
+    const state = JSON.parse(stateRaw) as JobState;
+    assert.equal(state.status, "complete", "state.json must show complete after re-run");
+    assert.equal(state.stage, "export", "state.json must show export stage after re-run");
+
+    // Log should contain skip messages
+    const log = await fs.readFile(path.join(jobDir, "logs", "pipeline.log"), "utf8");
+    assert.ok(log.includes("transcribe skipped"), "log must record transcribe skip");
+    assert.ok(log.includes("draft skipped"), "log must record draft skip");
   });
 });
