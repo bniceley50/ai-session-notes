@@ -11,6 +11,7 @@ import { ARTIFACTS_ROOT } from "@/lib/jobs/artifacts";
 import { runJobPipeline } from "@/lib/jobs/pipeline";
 import { writeJobIndex, writeJobStatus, type JobStatusFile } from "@/lib/jobs/status";
 import { writeAudioMetadata } from "@/lib/jobs/audio";
+import type { JobState } from "@/lib/jobs/jobState";
 
 // ARTIFACTS_ROOT was set to a temp dir by setup-env.ts (via --import).
 const artifactsRoot = path.resolve(ARTIFACTS_ROOT);
@@ -132,6 +133,14 @@ describe("runJobPipeline", () => {
     const allFiles = await fs.readdir(jobDir, { recursive: true });
     const temps = (allFiles as string[]).filter((f) => f.includes(".tmp-"));
     assert.equal(temps.length, 0, "no .tmp- files should remain after successful pipeline");
+
+    // state.json records final complete state
+    const stateRaw = await fs.readFile(path.join(jobDir, "state.json"), "utf8");
+    const state = JSON.parse(stateRaw) as JobState;
+    assert.equal(state.status, "complete", "state.json must show complete");
+    assert.equal(state.stage, "export", "state.json must show final stage as export");
+    assert.ok(state.updatedAt, "state.json must have updatedAt");
+    assert.equal(state.error, undefined, "state.json must not have error on success");
   });
 
   test("deleted job exits early without writing files", async () => {
@@ -189,6 +198,13 @@ describe("runJobPipeline", () => {
         .then(() => true)
         .catch(() => false);
       assert.equal(lockExists, false, "runner.lock must be removed after pipeline failure");
+
+      // state.json records failure with error details
+      const stateRaw = await fs.readFile(path.join(jobDir, "state.json"), "utf8");
+      const state = JSON.parse(stateRaw) as JobState;
+      assert.equal(state.status, "failed", "state.json must show failed");
+      assert.ok(state.error, "state.json must have error object on failure");
+      assert.ok(state.error.message.includes("disabled"), "state.json error must mention APIs are disabled");
     } finally {
       // Restore flags
       if (savedStub !== undefined) process.env.AI_ENABLE_STUB_APIS = savedStub;

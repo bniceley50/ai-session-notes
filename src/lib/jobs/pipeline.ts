@@ -15,6 +15,7 @@ import { generateClinicalNote, type ClinicalNoteType } from "@/lib/jobs/claude";
 import { withTimeout } from "@/lib/jobs/withTimeout";
 import { checkFfmpeg } from "@/lib/jobs/ffmpeg";
 import { writeFileAtomic } from "@/lib/fs/writeFileAtomic";
+import { writeJobState } from "@/lib/jobs/jobState";
 import {
   aiWhisperTimeoutMs,
   aiClaudeTimeoutMs,
@@ -113,6 +114,7 @@ export const runJobPipeline = async ({
     if (!claimed) return;
 
     if (await shouldStop(jobId)) return;
+    await writeJobState(sessionId, jobId, { status: "running", stage: "init", updatedAt: new Date().toISOString() });
     await appendLog(sessionId, jobId, `pipeline start (mode=${mode})`);
 
     if (!isRealApisEnabled() && !isStubModeEnabled()) {
@@ -127,23 +129,29 @@ export const runJobPipeline = async ({
       await appendLog(sessionId, jobId, `STUB MODE (mode=${mode})`);
 
       if (runTranscribe) {
+        stage = "transcribe";
+        await writeJobState(sessionId, jobId, { status: "running", stage, updatedAt: new Date().toISOString() });
         const stubTranscript = `STUB Transcript (Demo Mode)\n\nThis is demo content generated because AI_ENABLE_STUB_APIS=1.\nTo use real Whisper API, set AI_ENABLE_REAL_APIS=1.\n\n[Demo conversation would go here]`;
         await writeTextFile(getJobTranscriptPath(sessionId, jobId), stubTranscript);
         // Also write session-level transcript so analyze-only can find it later
         await writeTextFile(getSessionTranscriptPath(sessionId), stubTranscript);
         progress = 40;
-        await updateJobStatus(jobId, { status: "running", stage: "transcribe", progress, errorMessage: null });
+        await updateJobStatus(jobId, { status: "running", stage, progress, errorMessage: null });
       }
 
       if (runAnalyze) {
+        stage = "draft";
+        await writeJobState(sessionId, jobId, { status: "running", stage, updatedAt: new Date().toISOString() });
         const noteLabel = noteType.toUpperCase();
         const stubDraft = `# ${noteLabel} Note (Demo Mode)\n\nThis is demo content generated because AI_ENABLE_STUB_APIS=1.\nTo use real Claude API, set AI_ENABLE_REAL_APIS=1.\n\nNote type: ${noteType}\n\n## Section 1\n[Demo content]\n\n## Section 2\n[Demo content]\n\n## Section 3\n[Demo content]`;
         await writeTextFile(getJobDraftPath(sessionId, jobId), stubDraft);
         progress = 80;
-        await updateJobStatus(jobId, { status: "running", stage: "draft", progress, errorMessage: null });
+        await updateJobStatus(jobId, { status: "running", stage, progress, errorMessage: null });
       }
 
-      await updateJobStatus(jobId, { status: "complete", stage: runAnalyze ? "export" : "transcribe", progress: 100, errorMessage: null });
+      const finalStage = runAnalyze ? "export" : "transcribe";
+      await writeJobState(sessionId, jobId, { status: "complete", stage: finalStage, updatedAt: new Date().toISOString() });
+      await updateJobStatus(jobId, { status: "complete", stage: finalStage, progress: 100, errorMessage: null });
       await appendLog(sessionId, jobId, `pipeline complete (stub, mode=${mode})`);
       return;
     }
@@ -159,6 +167,7 @@ export const runJobPipeline = async ({
 
       stage = "transcribe";
       progress = 0;
+      await writeJobState(sessionId, jobId, { status: "running", stage, updatedAt: new Date().toISOString() });
       await updateJobStatus(jobId, { status: "running", stage, progress, errorMessage: null });
       await appendLog(sessionId, jobId, `transcribing: ${audioSummary}`);
 
@@ -220,6 +229,7 @@ export const runJobPipeline = async ({
 
     // If transcribe-only, we're done
     if (!runAnalyze) {
+      await writeJobState(sessionId, jobId, { status: "complete", stage: "transcribe", updatedAt: new Date().toISOString() });
       await updateJobStatus(jobId, { status: "complete", stage: "transcribe", progress: 100, errorMessage: null });
       await appendLog(sessionId, jobId, "pipeline complete (transcribe-only)");
       return;
@@ -238,6 +248,7 @@ export const runJobPipeline = async ({
 
     stage = "draft";
     progress = runTranscribe ? 40 : 0;
+    await writeJobState(sessionId, jobId, { status: "running", stage, updatedAt: new Date().toISOString() });
     await updateJobStatus(jobId, { status: "running", stage, progress, errorMessage: null });
     await appendLog(sessionId, jobId, `generating ${noteType} note from transcript`);
 
@@ -265,15 +276,24 @@ export const runJobPipeline = async ({
     if (await shouldStop(jobId)) return;
     stage = "export";
     progress = 90;
+    await writeJobState(sessionId, jobId, { status: "running", stage, updatedAt: new Date().toISOString() });
     await updateJobStatus(jobId, { status: "running", stage, progress, errorMessage: null });
 
     const exportText = `EHR Export\n\nGenerated: ${new Date().toISOString()}\n`;
     await writeTextFile(getJobExportPath(sessionId, jobId), exportText);
 
+    await writeJobState(sessionId, jobId, { status: "complete", stage: "export", updatedAt: new Date().toISOString() });
     await updateJobStatus(jobId, { status: "complete", stage: "export", progress: 100, errorMessage: null });
     await appendLog(sessionId, jobId, "pipeline complete");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Pipeline failed.";
+    const errorName = error instanceof Error ? error.name : "Error";
+    await writeJobState(sessionId, jobId, {
+      status: "failed",
+      stage,
+      updatedAt: new Date().toISOString(),
+      error: { name: errorName, message },
+    }).catch(() => {});
     await updateJobStatus(jobId, { status: "failed", stage, progress, errorMessage: message }).catch(() => {});
     await appendLog(sessionId, jobId, `pipeline failed: ${message}`).catch(() => {});
   } finally {
